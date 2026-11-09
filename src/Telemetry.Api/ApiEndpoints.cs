@@ -25,10 +25,11 @@ public static class ApiEndpoints
     {
         if (page < 1 || pageSize is < 1 or > 200) return Results.ValidationProblem(new Dictionary<string, string[]> { ["pagination"] = ["page must be positive and pageSize must be between 1 and 200."] });
         await using var command = db.CreateCommand("""
-            SELECT d.id,d.series_key,d.display_name,s.site_key,a.asset_key,d.measurement_type,d.unit,d.data_type,d.namespace_uri,d.node_id,d.description,d.tags,d.active
-            FROM series_definitions d JOIN sites s ON s.id=d.site_id JOIN assets a ON a.id=d.asset_id
-            WHERE ($1 IS NULL OR d.series_key ILIKE '%'||$1||'%' OR d.display_name ILIKE '%'||$1||'%')
-              AND ($2 IS NULL OR s.site_key=$2) AND ($3 IS NULL OR a.asset_key=$3) AND ($4 IS NULL OR d.measurement_type=$4)
+            SELECT d.id,d.series_key,d.display_name,s.site_key,s.display_name AS site_name,a.asset_key,a.display_name AS asset_name,
+              d.measurement_id,d.measurement_type,d.unit,d.data_type,srv.server_key,srv.endpoint,d.namespace_uri,d.node_id,d.description,d.tags,d.active,d.created_at
+            FROM series_definitions d JOIN sites s ON s.id=d.site_id JOIN assets a ON a.id=d.asset_id JOIN opcua_servers srv ON srv.id=d.opcua_server_id
+            WHERE ($1::text IS NULL OR d.series_key ILIKE '%'||$1||'%' OR d.display_name ILIKE '%'||$1||'%')
+              AND ($2::text IS NULL OR s.site_key=$2) AND ($3::text IS NULL OR a.asset_key=$3) AND ($4::text IS NULL OR d.measurement_type=$4)
             ORDER BY d.series_key LIMIT $5 OFFSET $6
             """);
         AddNullable(command, search); AddNullable(command, site); AddNullable(command, asset); AddNullable(command, measurementType);
@@ -49,16 +50,20 @@ public static class ApiEndpoints
         if (from >= to || limit is < 1 or > 20_000) return Results.ValidationProblem(new Dictionary<string, string[]> { ["range"] = ["from must precede to and limit must be between 1 and 20000."] });
         await using var command = db.CreateCommand("""
             SELECT event_id,series_id,numeric_value,boolean_value,text_value,quality,opcua_status_code,source_timestamp,server_timestamp,received_timestamp,processing_timestamp,ingestion_timestamp
-            FROM telemetry_measurements WHERE series_id=$1 AND source_timestamp >= $2 AND source_timestamp < $3 AND ($4 IS NULL OR quality=$4)
-            ORDER BY source_timestamp LIMIT $5
+            FROM telemetry_measurements WHERE series_id=$1 AND source_timestamp >= $2 AND source_timestamp < $3 AND ($4::text IS NULL OR quality=$4)
+            ORDER BY source_timestamp DESC LIMIT $5
             """);
         command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(from); command.Parameters.AddWithValue(to); AddNullable(command, quality); command.Parameters.AddWithValue(limit);
         return Results.Ok(await ReadRows(command, ct).ConfigureAwait(false));
     }
 
     private static Task<List<Dictionary<string, object?>>> Latest(NpgsqlDataSource db, CancellationToken ct) => Query(db, """
-        SELECT DISTINCT ON (m.series_id) m.series_id,s.series_key,s.display_name,s.unit,m.numeric_value,m.boolean_value,m.text_value,m.quality,m.source_timestamp
-        FROM telemetry_measurements m JOIN series_definitions s ON s.id=m.series_id ORDER BY m.series_id,m.source_timestamp DESC
+        SELECT DISTINCT ON (m.series_id) m.series_id,s.series_key,s.display_name,site.site_key,asset.asset_key,s.unit,
+          m.numeric_value,m.boolean_value,m.text_value,m.quality,m.opcua_status_code,m.source_timestamp,
+          m.server_timestamp,m.received_timestamp,m.processing_timestamp,m.ingestion_timestamp
+        FROM telemetry_measurements m JOIN series_definitions s ON s.id=m.series_id
+          JOIN sites site ON site.id=s.site_id JOIN assets asset ON asset.id=s.asset_id
+        ORDER BY m.series_id,m.source_timestamp DESC
         """, ct);
 
     private static async Task<IResult> Overview(NpgsqlDataSource db, CancellationToken ct)

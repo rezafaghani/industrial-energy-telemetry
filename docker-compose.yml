@@ -52,7 +52,7 @@ services:
     environment: { POSTGRES_DB: ietp, POSTGRES_USER: ietp, POSTGRES_PASSWORD: ietp-dev-only }
     volumes:
       - postgres-data:/var/lib/postgresql
-      - ./infrastructure/postgres/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+      - ./infrastructure/postgres/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro,Z
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ietp -d ietp"]
       interval: 5s

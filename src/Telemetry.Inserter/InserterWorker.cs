@@ -52,7 +52,7 @@ public sealed class InserterWorker(IOptions<InserterOptions> options) : Backgrou
             Interlocked.Add(ref _events, messages.Count);
             _lastLatency = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             Observability.InsertionLatency.Record(_lastLatency);
-            foreach (var last in messages.GroupBy(message => message.Partition).Select(group => group.MaxBy(message => message.Offset)!))
+            foreach (var last in messages.GroupBy(message => message.Partition).Select(group => group.MaxBy(message => message.Offset.Value)!))
             {
                 consumer.StoreOffset(last);
             }
@@ -100,30 +100,68 @@ public sealed class InserterWorker(IOptions<InserterOptions> options) : Backgrou
 
     private static async Task PersistHeartbeatAsync(NpgsqlDataSource dataSource, ServiceHeartbeat heartbeat, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand("""
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using (var instanceCommand = connection.CreateCommand())
+        {
+            instanceCommand.Transaction = transaction;
+            instanceCommand.CommandText = """
             INSERT INTO service_instances(service_name,instance_id,service_type,version,started_at)
-            VALUES($1,$2,$3,$4,$5) ON CONFLICT(service_name,instance_id) DO UPDATE SET started_at=excluded.started_at;
+            VALUES($1,$2,$3,$4,$5) ON CONFLICT(service_name,instance_id) DO UPDATE SET started_at=excluded.started_at
+            """;
+            instanceCommand.Parameters.AddWithValue(heartbeat.ServiceType);
+            instanceCommand.Parameters.AddWithValue(heartbeat.InstanceId);
+            instanceCommand.Parameters.AddWithValue(heartbeat.ServiceType);
+            instanceCommand.Parameters.AddWithValue(typeof(InserterWorker).Assembly.GetName().Version?.ToString() ?? "unknown");
+            instanceCommand.Parameters.AddWithValue(heartbeat.StartedAt);
+            await instanceCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var heartbeatCommand = connection.CreateCommand())
+        {
+            heartbeatCommand.Transaction = transaction;
+            heartbeatCommand.CommandText = """
             INSERT INTO service_heartbeats(service_name,instance_id,observed_at,health,counters,details)
-            VALUES($1,$2,$6,$7,jsonb_build_object('events',$8,'errors',$9,'latencyMilliseconds',$10),jsonb_build_object('error',$11::text))
-            ON CONFLICT(service_name,instance_id) DO UPDATE SET observed_at=excluded.observed_at,health=excluded.health,counters=excluded.counters,details=excluded.details;
-            UPDATE opcua_clients SET last_status=$7,last_communication=$6,reconnection_attempts=$12 WHERE client_key=$13;
-            UPDATE opcua_servers SET last_status=$7,last_communication=$6 WHERE server_key=$14;
-            """);
-        command.Parameters.AddWithValue(heartbeat.ServiceType);
-        command.Parameters.AddWithValue(heartbeat.InstanceId);
-        command.Parameters.AddWithValue(heartbeat.ServiceType);
-        command.Parameters.AddWithValue(typeof(InserterWorker).Assembly.GetName().Version?.ToString() ?? "unknown");
-        command.Parameters.AddWithValue(heartbeat.StartedAt);
-        command.Parameters.AddWithValue(heartbeat.ObservedAt);
-        command.Parameters.AddWithValue(heartbeat.Health);
-        command.Parameters.AddWithValue(heartbeat.Events);
-        command.Parameters.AddWithValue(heartbeat.Errors);
-        command.Parameters.AddWithValue(heartbeat.LatencyMilliseconds);
-        command.Parameters.AddWithValue((object?)heartbeat.Error ?? DBNull.Value);
-        command.Parameters.AddWithValue(heartbeat.ReconnectionAttempts);
-        command.Parameters.AddWithValue((object?)heartbeat.ClientId ?? DBNull.Value);
-        command.Parameters.AddWithValue((object?)heartbeat.ServerId ?? DBNull.Value);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            VALUES($1,$2,$3,$4,jsonb_build_object('events',$5,'errors',$6,'latencyMilliseconds',$7),jsonb_build_object('error',$8::text))
+            ON CONFLICT(service_name,instance_id) DO UPDATE SET observed_at=excluded.observed_at,health=excluded.health,counters=excluded.counters,details=excluded.details
+            """;
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.ServiceType);
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.InstanceId);
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.ObservedAt);
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.Health);
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.Events);
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.Errors);
+            heartbeatCommand.Parameters.AddWithValue(heartbeat.LatencyMilliseconds);
+            heartbeatCommand.Parameters.AddWithValue((object?)heartbeat.Error ?? DBNull.Value);
+            await heartbeatCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var clientCommand = connection.CreateCommand())
+        {
+            clientCommand.Transaction = transaction;
+            clientCommand.CommandText = """
+                UPDATE opcua_clients SET last_status=$1,last_communication=$2,reconnection_attempts=$3 WHERE client_key=$4
+                """;
+            clientCommand.Parameters.AddWithValue(heartbeat.Health);
+            clientCommand.Parameters.AddWithValue(heartbeat.ObservedAt);
+            clientCommand.Parameters.AddWithValue(heartbeat.ReconnectionAttempts);
+            clientCommand.Parameters.AddWithValue((object?)heartbeat.ClientId ?? DBNull.Value);
+            await clientCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var serverCommand = connection.CreateCommand())
+        {
+            serverCommand.Transaction = transaction;
+            serverCommand.CommandText = """
+                UPDATE opcua_servers SET last_status=$1,last_communication=$2 WHERE server_key=$3
+                """;
+            serverCommand.Parameters.AddWithValue(heartbeat.Health);
+            serverCommand.Parameters.AddWithValue(heartbeat.ObservedAt);
+            serverCommand.Parameters.AddWithValue((object?)heartbeat.ServerId ?? DBNull.Value);
+            await serverCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task PersistAsync(NpgsqlDataSource dataSource, IReadOnlyList<ConsumeResult<string, string>> messages, CancellationToken cancellationToken)

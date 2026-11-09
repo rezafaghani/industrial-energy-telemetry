@@ -14,6 +14,14 @@ public sealed class SeriesIdentityTests
         Assert.Equal(SeriesIdentity.CreateId(key), SeriesIdentity.CreateId(key));
     }
 
+    [Fact]
+    public void RegistryEntityIdAcceptsClientKeysWithHyphens()
+    {
+        var id = SeriesCatalog.EntityId("client", "windfarm01-client");
+
+        Assert.NotEqual(Guid.Empty, id);
+    }
+
     [Theory]
     [InlineData("dk.demo.site.asset")]
     [InlineData("dk.demo.site.asset.active-power")]

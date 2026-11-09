@@ -94,15 +94,21 @@ Retention defaults to 30 days in `platform_settings`. Schedule `SELECT purge_exp
 
 ## Local execution
 
-With Docker Compose and at least 8 GB available RAM:
+With Docker Compose or Podman Compose and at least 8 GB available RAM:
 
 ```bash
+# Docker
 docker compose up --build
+
+# Podman
+podman compose up --build
 ```
 
 - Dashboard: <http://localhost:3000>
 - API/OpenAPI: <http://localhost:8080/openapi/v1.json>
 - Liveness/readiness: `/health/live`, `/health/ready`
+
+The PostgreSQL initialization script is mounted read-only and uses a private SELinux label (`:Z`) for Podman on enforcing hosts.
 
 Compose explicitly enables unsecured OPC UA only under `DOTNET_ENVIRONMENT=Development`. Application defaults require `Basic256Sha256`, signing/encryption, explicit trust, SHA-1 rejection, and 2048-bit keys. Production must provision and mount certificates/trust lists.
 
@@ -119,9 +125,10 @@ Grafana is on port 3001, Jaeger on 16686, and Prometheus on 9090. The React UI p
 - Overview health, active replicas, throughput, latest timestamp, quality/dead-letter counts
 - OPC UA endpoints, evidence-based status, communication time, subscriptions/items, retries/errors
 - Service uptime, heartbeat, counters, errors, and latency
-- Searchable series metadata and NodeId mappings
-- Compatible-unit comparison for up to four numeric series
-- Discrete state history, live SignalR refresh, dark/light responsive layout
+- Searchable series metadata, including site, asset, server, tags, and NodeId mappings
+- Numeric time-series charts and measurement history with source/server/receive/processing/ingestion timestamps, quality, and OPC UA status
+- Compatible-unit comparison for up to four series, plus tabular discrete-state history
+- Live SignalR refresh, visible loading/errors, and dark/light responsive layout
 
 ## Kubernetes
 

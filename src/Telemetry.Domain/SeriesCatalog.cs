@@ -26,7 +26,8 @@ public static class SeriesCatalog
             ("energy_consumption", "Energy consumption", "kWh", "Double"), ("equipment_load", "Equipment load", "%", "Double"), ("operational_state", "Operational state", "", "String"))
     ];
 
-    public static Guid EntityId(string kind, string key) => SeriesIdentity.CreateId($"dk.demo.registry.{kind}.{key}");
+    public static Guid EntityId(string kind, string key) =>
+        SeriesIdentity.CreateId($"dk.demo.registry.{kind}.{key.Replace('-', '_')}");
 
     private static IEnumerable<SeriesDefinition> Site(
         string siteKey, string siteName, string assetKey, string assetName, string assetType,
