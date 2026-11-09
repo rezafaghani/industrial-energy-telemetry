@@ -17,16 +17,18 @@ JSON is the initial versioned event encoding because it is inspectable and suppo
 src/
   Telemetry.Contracts/   versioned wire contracts
   Telemetry.Domain/      series rules and simulation model
-  OpcUa.Server/          configurable simulator host (planned)
-  OpcUa.Client/          subscription/Kafka publisher (planned)
-  Telemetry.Processor/   raw consumer and processed producer (planned)
-  Telemetry.Inserter/    processed consumer and PostgreSQL writer (planned)
-  Telemetry.Api/         queries, health, SignalR (planned)
-frontend/                React/Vite UI (planned)
+  OpcUa.Server/          configurable simulator host (implemented)
+  OpcUa.Client/          subscription/Kafka publisher (implemented)
+  Telemetry.Processor/   raw consumer and processed producer (implemented)
+  Telemetry.Inserter/    processed consumer and PostgreSQL writer (implemented)
+  Telemetry.Api/         queries, health, SignalR (implemented)
+frontend/                React/Vite UI (implemented)
 tests/                   unit, integration, and end-to-end suites
 infrastructure/          Compose, Kafka, PostgreSQL, observability, Kubernetes
 docs/                    architecture and operations
 ```
+
+Implementation does not imply live-system acceptance: see [implementation status](../../IMPLEMENTATION_STATUS.md) for executed verification and remaining runtime checks.
 
 ## Service responsibility matrix
 

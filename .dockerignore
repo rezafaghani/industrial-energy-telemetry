@@ -1,0 +1,13 @@
+.git
+.vs
+.idea
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/TestResults
+**/coverage
+*.user
+*.pfx
+*.pem
+*.key

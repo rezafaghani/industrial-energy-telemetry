@@ -1,70 +1,41 @@
 # Implementation checklist
 
-Actual status only; an unchecked item is not implemented or has not been verified.
+`Implemented` means source/configuration exists; `Verified` means the check was executed successfully. Do not interpret implementation as live-system acceptance.
 
-## Phase 1 — Foundation
+## Foundation
 
-- [x] Architecture decision and repository proposal
-- [x] Service responsibility matrix
-- [x] Topic/partition and delivery strategy
-- [x] PostgreSQL schema proposal
-- [x] Stable series identity specification
-- [x] Versioned typed telemetry contract
-- [x] Foundation build verified (zero warnings/errors)
-- [ ] Unit tests executed (runner blocked by environment socket policy on 2026-11-09)
+- [x] Architecture decision, service boundaries, typed contracts, stable series identity, and PostgreSQL schema.
+- [x] .NET solution build verified (zero warnings/errors).
+- [x] Unit tests verified (16 passed).
 
-## Phase 2 — OPC UA
+## OPC UA and ingestion
 
-- [ ] Real configurable OPC UA server with five simulation profiles
-- [x] Correlated simulation, anomalies, failures, and deterministic seeds
-- [ ] Real client session, discovery, subscription, and reconnect
-- [ ] Certificates and explicit development trust policy
-- [ ] Five server/client instances verified simultaneously
+- [x] Five configurable OPC UA server profiles and real server/client session/subscription workers implemented.
+- [x] Correlated simulation, anomalies, failures, deterministic seeds, client retry, and bounded event buffering implemented.
+- [ ] Five server/client instances and subscription notifications verified together.
+- [ ] Kafka raw-topic publication and full processor/inserter path verified at runtime.
 
-## Phase 3 — Kafka ingestion
+## Processing and persistence
 
-- [ ] Idempotent producer and bounded client buffering
-- [ ] Topic initialization with partition counts
-- [ ] Raw events verified in Kafka
+- [x] Processor validation, series metadata checks, dead-letter routing, and explicit offset handling implemented.
+- [x] PostgreSQL migrations, stable registry, batched inserts, and event-receipt deduplication implemented.
+- [ ] Kafka consumer-group parallelism, database insertion, replay, and outage recovery verified with live infrastructure.
 
-## Phase 4 — Processing
+## API and dashboard
 
-- [ ] Validation, normalization, enrichment, and dead lettering
-- [ ] Explicit offset handling and replica scaling verified
+- [x] Metadata, health, latest/history, quality/statistics, OpenAPI, and SignalR endpoints implemented.
+- [x] React dashboard, series explorer, unit-aware numeric charting, and discrete history implemented.
+- [ ] Full five-source data visibility, dashboard status, and SignalR behavior verified end-to-end.
+- [ ] Consumer lag and all requested infrastructure/series filters and chart interactions implemented.
 
-## Phase 5 — Persistence
+## Deployment and verification
 
-- [ ] Migrations, registry seed, partitioned telemetry schema
-- [ ] Batched idempotent inserter and outage recovery
+- [x] Compose, Helm/Kubernetes templates, CI, and observability configuration exist.
+- [x] Compose configuration syntax verified.
+- [x] Frontend lockfile install, typecheck, production build, and lint verified.
+- [ ] Compose services started and checked healthy; Docker is unavailable in this environment.
+- [ ] Testcontainers integration and five-source end-to-end tests passed; Docker is unavailable in this environment.
+- [ ] Helm chart rendered/deployed; Helm is unavailable in this environment.
 
-## Phase 6 — API
-
-- [ ] Metadata, health, latest, history, quality, and statistics endpoints
-- [ ] Pagination/filtering/OpenAPI/validation
-- [ ] SignalR live updates
-
-## Phase 7 — UI
-
-- [ ] Responsive dark monitoring dashboard
-- [ ] OPC UA and service monitoring pages
-- [ ] Series explorer and compatible-unit charts
-- [ ] Live status and telemetry
-
-## Phase 8 — Reliability and observability
-
-- [ ] OpenTelemetry traces, metrics, and structured logs
-- [ ] Correct liveness/readiness and failure scenarios
-- [ ] Local collector, Prometheus, Grafana, and Jaeger
-
-## Phase 9 — Deployment and CI/CD
-
-- [ ] Complete Compose deployment (5+5, 2 processors, 2 inserters)
-- [ ] Kubernetes resources, probes, limits, storage, and lag scaling guidance
-- [ ] GitHub Actions build/test/frontend/image/security workflows
-
-## Phase 10 — Verification
-
-- [ ] Unit and real-infrastructure integration tests
-- [ ] Five-source end-to-end persistence/API/UI test
-- [ ] Reconnect, replay, deduplication, and database recovery verified
+See [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md) for exact command outcomes and remaining acceptance checks.
 - [ ] README matches demonstrated behavior

@@ -53,8 +53,11 @@ public sealed partial class OpcUaClientWorker : BackgroundService
             {
                 try
                 {
-                    await ConnectAndMonitorAsync(configuration, stoppingToken).ConfigureAwait(false);
-                    attempt = 0;
+                    await ConnectAndMonitorAsync(configuration, () =>
+                    {
+                        attempt = 0;
+                        _reconnectionAttempts = 0;
+                    }, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -81,7 +84,10 @@ public sealed partial class OpcUaClientWorker : BackgroundService
         }
     }
 
-    private async Task ConnectAndMonitorAsync(ApplicationConfiguration configuration, CancellationToken cancellationToken)
+    private async Task ConnectAndMonitorAsync(
+        ApplicationConfiguration configuration,
+        Action onConnected,
+        CancellationToken cancellationToken)
     {
         var endpointDescription = await CoreClientUtils.SelectEndpointAsync(
             configuration, _options.Endpoint, _options.UseSecurity, 15_000, _telemetry, cancellationToken).ConfigureAwait(false);
@@ -137,6 +143,7 @@ public sealed partial class OpcUaClientWorker : BackgroundService
             await subscription.CreateAsync(cancellationToken).ConfigureAwait(false);
             _connected = true;
             _lastError = null;
+            onConnected();
             Connected(_logger, _options.ServerId, checked((int)subscription.MonitoredItemCount));
             await disconnected.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();

@@ -138,15 +138,16 @@ cd frontend
 npm ci
 npm run typecheck
 npm run build
+npm run lint
 ```
 
-After Compose is healthy:
+The Testcontainers integration tests require a working Docker-compatible daemon. After Compose is healthy, run:
 
 ```bash
 IETP_BASE_URL=http://localhost:3000 dotnet test tests/Telemetry.EndToEndTests
 ```
 
-Unit tests cover identity, validation, and correlated simulation. Testcontainers integration tests use real Kafka and PostgreSQL. The E2E test requires all five sources to become persisted/queryable and verifies API/frontend visibility.
+Unit tests cover identity, validation, and correlated simulation. Testcontainers integration tests use real Kafka and PostgreSQL. The E2E test requires all five sources to become persisted/queryable and verifies API/frontend visibility. See [implementation status](IMPLEMENTATION_STATUS.md) for what has actually been verified in this workspace.
 
 See [failure scenarios](docs/failure-scenarios/compose.md) for disconnect/reconnect, consumer replacement, database outage/recovery, replay/deduplication, invalid-message dead lettering, and deterministic simulation failure.
 
@@ -158,6 +159,7 @@ See [failure scenarios](docs/failure-scenarios/compose.md) for disconnect/reconn
 - The demonstration API has no end-user authentication and must not be internet-exposed as-is.
 - Compose Kafka/PostgreSQL are single-node development infrastructure.
 - Client HA ownership leases and a SignalR scale-out backplane are documented future work.
+- Consumer lag is used by KEDA but is not yet surfaced in the API/dashboard; some requested infrastructure detail and chart interactions remain outstanding.
 - The default telemetry partition is suitable for development; automate monthly partitions in production.
 
 ## License
