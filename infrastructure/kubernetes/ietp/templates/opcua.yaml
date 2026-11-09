@@ -1,0 +1,63 @@
+{{- range $index, $site := .Values.sites }}
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: opcua-{{ $site.name }} }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: opcua-{{ $site.name }} } }
+  template:
+    metadata: { labels: { app: opcua-{{ $site.name }}, ietp-role: opcua-server } }
+    spec:
+      containers:
+        - name: server
+          image: "{{ $.Values.image.registry }}/opcua-server:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports: [{ name: opcua, containerPort: {{ $site.port }} }]
+          env:
+            - { name: OpcUa__ServerId, value: {{ $site.serverId | quote }} }
+            - { name: OpcUa__Endpoint, value: "opc.tcp://0.0.0.0:{{ $site.port }}/ietp" }
+            - { name: OpcUa__NamespaceUri, value: {{ $site.namespaceUri | quote }} }
+            - { name: OpcUa__AssetId, value: {{ $site.assetId | quote }} }
+            - { name: OpcUa__Profile, value: {{ $site.profile | quote }} }
+            - { name: OpcUa__Seed, value: {{ add $index 100 | quote }} }
+            - { name: OpcUa__AllowUnsecuredDevelopmentEndpoint, value: {{ $.Values.opcUa.allowUnsecuredDevelopmentEndpoint | quote }} }
+          readinessProbe: { tcpSocket: { port: opcua }, initialDelaySeconds: 5, periodSeconds: 5 }
+          livenessProbe: { tcpSocket: { port: opcua }, initialDelaySeconds: 15, periodSeconds: 10 }
+          resources: {{ toYaml $.Values.resources.workers | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: opcua-{{ $site.name }} }
+spec:
+  selector: { app: opcua-{{ $site.name }} }
+  ports: [{ name: opcua, port: {{ $site.port }}, targetPort: opcua }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: client-{{ $site.name }} }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: client-{{ $site.name }} } }
+  template:
+    metadata: { labels: { app: client-{{ $site.name }}, ietp-role: opcua-client } }
+    spec:
+      containers:
+        - name: client
+          image: "{{ $.Values.image.registry }}/opcua-client:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - { name: OpcUaClient__ClientId, value: {{ $site.clientId | quote }} }
+            - { name: OpcUaClient__ServerId, value: {{ $site.serverId | quote }} }
+            - { name: OpcUaClient__Endpoint, value: "opc.tcp://opcua-{{ $site.name }}:{{ $site.port }}/ietp" }
+            - { name: OpcUaClient__NamespaceUri, value: {{ $site.namespaceUri | quote }} }
+            - { name: OpcUaClient__SiteId, value: {{ $site.siteId | quote }} }
+            - { name: OpcUaClient__AssetId, value: {{ $site.assetId | quote }} }
+            - { name: OpcUaClient__KafkaBootstrapServers, valueFrom: { configMapKeyRef: { name: ietp-config, key: kafka-bootstrap-servers } } }
+            - { name: OpcUaClient__UseSecurity, value: "true" }
+            {{- range $measurementIndex, $measurement := splitList "," $site.measurements }}
+            - { name: "OpcUaClient__Measurements__{{ $measurementIndex }}", value: {{ $measurement | quote }} }
+            {{- end }}
+          livenessProbe: { exec: { command: ["sh", "-c", "test -r /proc/1/status"] }, initialDelaySeconds: 15, periodSeconds: 10 }
+          resources: {{ toYaml $.Values.resources.workers | nindent 12 }}
+---
+{{- end }}

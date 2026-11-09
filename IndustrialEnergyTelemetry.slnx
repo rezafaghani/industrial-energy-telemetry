@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BuildingBlocks/BuildingBlocks.csproj" />
+    <Project Path="src/OpcUa.Client/OpcUa.Client.csproj" />
+    <Project Path="src/OpcUa.Server/OpcUa.Server.csproj" />
+    <Project Path="src/Telemetry.Processor/Telemetry.Processor.csproj" />
+    <Project Path="src/Telemetry.Inserter/Telemetry.Inserter.csproj" />
+    <Project Path="src/Telemetry.Api/Telemetry.Api.csproj" />
+    <Project Path="src/Telemetry.Contracts/Telemetry.Contracts.csproj" />
+    <Project Path="src/Telemetry.Domain/Telemetry.Domain.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Telemetry.EndToEndTests/Telemetry.EndToEndTests.csproj" />
+    <Project Path="tests/Telemetry.IntegrationTests/Telemetry.IntegrationTests.csproj" />
+    <Project Path="tests/Telemetry.UnitTests/Telemetry.UnitTests.csproj" />
+  </Folder>
+</Solution>

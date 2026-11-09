@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Confluent.Kafka" Version="2.16.0" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BuildingBlocks/BuildingBlocks.csproj" />
+    <ProjectReference Include="../Telemetry.Contracts/Telemetry.Contracts.csproj" />
+    <ProjectReference Include="../Telemetry.Domain/Telemetry.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../infrastructure/postgres/*.sql" /></ItemGroup>
+</Project>

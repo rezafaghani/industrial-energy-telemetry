@@ -1,0 +1,25 @@
+image:
+  registry: ghcr.io/example/ietp
+  tag: latest
+  pullPolicy: IfNotPresent
+kafka:
+  bootstrapServers: kafka:9092
+postgres:
+  host: postgres
+  database: ietp
+  username: ietp
+  passwordSecret: ietp-postgres
+  passwordKey: password
+opcUa:
+  allowUnsecuredDevelopmentEndpoint: false
+sites:
+  - { name: wind, serverId: windfarm01, clientId: windfarm01-client, siteId: windfarm01, assetId: turbine01, profile: WindFarm, port: 4841, namespaceUri: "urn:ietp:dk:demo:windfarm01", measurements: "wind_speed,rotor_speed,active_power,generator_temperature,operational_status,cumulative_energy" }
+  - { name: solar, serverId: solarfarm01, clientId: solarfarm01-client, siteId: solarfarm01, assetId: inverter01, profile: SolarFarm, port: 4842, namespaceUri: "urn:ietp:dk:demo:solarfarm01", measurements: "solar_irradiance,panel_temperature,dc_voltage,dc_current,active_power,inverter_status" }
+  - { name: grid, serverId: grid01, clientId: grid01-client, siteId: grid01, assetId: feeder01, profile: PowerGrid, port: 4843, namespaceUri: "urn:ietp:dk:demo:grid01", measurements: "grid_frequency,line_voltage,current,active_power,reactive_power,power_factor,connection_status" }
+  - { name: battery, serverId: battery01, clientId: battery01-client, siteId: battery01, assetId: bess01, profile: BatteryStorage, port: 4844, namespaceUri: "urn:ietp:dk:demo:battery01", measurements: "state_of_charge,charge_discharge_power,battery_voltage,battery_current,cell_temperature,operating_mode" }
+  - { name: plant, serverId: plant01, clientId: plant01-client, siteId: plant01, assetId: motor01, profile: IndustrialPlant, port: 4845, namespaceUri: "urn:ietp:dk:demo:plant01", measurements: "motor_speed,machine_vibration,motor_temperature,energy_consumption,equipment_load,operational_state" }
+processor: { replicas: 2, maxReplicas: 12 }
+inserter: { replicas: 2, maxReplicas: 12 }
+resources:
+  workers: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 1, memory: 512Mi } }
+  api: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 1, memory: 512Mi } }

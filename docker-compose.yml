@@ -1,0 +1,176 @@
+x-dotnet-build: &dotnet-build
+  context: .
+  dockerfile: infrastructure/docker/dotnet-service.Dockerfile
+x-server: &server
+  build:
+    <<: *dotnet-build
+    args: { PROJECT: OpcUa.Server }
+  restart: unless-stopped
+  environment: &server-env
+    DOTNET_ENVIRONMENT: Development
+    OpcUa__AllowUnsecuredDevelopmentEndpoint: "true"
+  healthcheck:
+    test: ["CMD-SHELL", "test -f /proc/1/status"]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+x-client: &client
+  build:
+    <<: *dotnet-build
+    args: { PROJECT: OpcUa.Client }
+  restart: unless-stopped
+  depends_on:
+    kafka-init: { condition: service_completed_successfully }
+  environment: &client-env
+    OpcUaClient__KafkaBootstrapServers: kafka:9092
+    OpcUaClient__UseSecurity: "false"
+x-processor: &processor
+  build:
+    <<: *dotnet-build
+    args: { PROJECT: Telemetry.Processor }
+  restart: unless-stopped
+  depends_on:
+    kafka-init: { condition: service_completed_successfully }
+  environment:
+    Processor__BootstrapServers: kafka:9092
+x-inserter: &inserter
+  build:
+    <<: *dotnet-build
+    args: { PROJECT: Telemetry.Inserter }
+  restart: unless-stopped
+  depends_on:
+    kafka-init: { condition: service_completed_successfully }
+    postgres: { condition: service_healthy }
+  environment:
+    Inserter__BootstrapServers: kafka:9092
+    Inserter__ConnectionString: Host=postgres;Database=ietp;Username=ietp;Password=ietp-dev-only
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment: { POSTGRES_DB: ietp, POSTGRES_USER: ietp, POSTGRES_PASSWORD: ietp-dev-only }
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ietp -d ietp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports: ["5432:5432"]
+
+  kafka:
+    image: apache/kafka:4.1.0
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes: ["kafka-data:/var/lib/kafka/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    ports: ["9092:9092"]
+
+  kafka-init:
+    image: apache/kafka:4.1.0
+    depends_on: { kafka: { condition: service_healthy } }
+    command: >-
+      sh -c '/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.raw --partitions 12 --replication-factor 1 &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.processed --partitions 12 --replication-factor 1 &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.dead-letter --partitions 6 --replication-factor 1 &&
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.status --partitions 6 --replication-factor 1'
+
+  opcua-wind:
+    <<: *server
+    environment: { <<: *server-env, OpcUa__ServerId: windfarm01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4841/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:windfarm01", OpcUa__AssetId: turbine01, OpcUa__Profile: WindFarm, OpcUa__Seed: 11 }
+    ports: ["4841:4841"]
+  opcua-solar:
+    <<: *server
+    environment: { <<: *server-env, OpcUa__ServerId: solarfarm01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4842/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:solarfarm01", OpcUa__AssetId: inverter01, OpcUa__Profile: SolarFarm, OpcUa__Seed: 22 }
+    ports: ["4842:4842"]
+  opcua-grid:
+    <<: *server
+    environment: { <<: *server-env, OpcUa__ServerId: grid01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4843/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:grid01", OpcUa__AssetId: feeder01, OpcUa__Profile: PowerGrid, OpcUa__Seed: 33 }
+    ports: ["4843:4843"]
+  opcua-battery:
+    <<: *server
+    environment: { <<: *server-env, OpcUa__ServerId: battery01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4844/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:battery01", OpcUa__AssetId: bess01, OpcUa__Profile: BatteryStorage, OpcUa__Seed: 44 }
+    ports: ["4844:4844"]
+  opcua-plant:
+    <<: *server
+    environment: { <<: *server-env, OpcUa__ServerId: plant01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4845/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:plant01", OpcUa__AssetId: motor01, OpcUa__Profile: IndustrialPlant, OpcUa__Seed: 55 }
+    ports: ["4845:4845"]
+
+  client-wind:
+    <<: *client
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-wind: { condition: service_healthy } }
+    environment: { <<: *client-env, OpcUaClient__ClientId: windfarm01-client, OpcUaClient__ServerId: windfarm01, OpcUaClient__Endpoint: "opc.tcp://opcua-wind:4841/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:windfarm01", OpcUaClient__SiteId: windfarm01, OpcUaClient__AssetId: turbine01, OpcUaClient__Measurements__0: wind_speed, OpcUaClient__Measurements__1: rotor_speed, OpcUaClient__Measurements__2: active_power, OpcUaClient__Measurements__3: generator_temperature, OpcUaClient__Measurements__4: operational_status, OpcUaClient__Measurements__5: cumulative_energy }
+  client-solar:
+    <<: *client
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-solar: { condition: service_healthy } }
+    environment: { <<: *client-env, OpcUaClient__ClientId: solarfarm01-client, OpcUaClient__ServerId: solarfarm01, OpcUaClient__Endpoint: "opc.tcp://opcua-solar:4842/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:solarfarm01", OpcUaClient__SiteId: solarfarm01, OpcUaClient__AssetId: inverter01, OpcUaClient__Measurements__0: solar_irradiance, OpcUaClient__Measurements__1: panel_temperature, OpcUaClient__Measurements__2: dc_voltage, OpcUaClient__Measurements__3: dc_current, OpcUaClient__Measurements__4: active_power, OpcUaClient__Measurements__5: inverter_status }
+  client-grid:
+    <<: *client
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-grid: { condition: service_healthy } }
+    environment: { <<: *client-env, OpcUaClient__ClientId: grid01-client, OpcUaClient__ServerId: grid01, OpcUaClient__Endpoint: "opc.tcp://opcua-grid:4843/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:grid01", OpcUaClient__SiteId: grid01, OpcUaClient__AssetId: feeder01, OpcUaClient__Measurements__0: grid_frequency, OpcUaClient__Measurements__1: line_voltage, OpcUaClient__Measurements__2: current, OpcUaClient__Measurements__3: active_power, OpcUaClient__Measurements__4: reactive_power, OpcUaClient__Measurements__5: power_factor, OpcUaClient__Measurements__6: connection_status }
+  client-battery:
+    <<: *client
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-battery: { condition: service_healthy } }
+    environment: { <<: *client-env, OpcUaClient__ClientId: battery01-client, OpcUaClient__ServerId: battery01, OpcUaClient__Endpoint: "opc.tcp://opcua-battery:4844/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:battery01", OpcUaClient__SiteId: battery01, OpcUaClient__AssetId: bess01, OpcUaClient__Measurements__0: state_of_charge, OpcUaClient__Measurements__1: charge_discharge_power, OpcUaClient__Measurements__2: battery_voltage, OpcUaClient__Measurements__3: battery_current, OpcUaClient__Measurements__4: cell_temperature, OpcUaClient__Measurements__5: operating_mode }
+  client-plant:
+    <<: *client
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-plant: { condition: service_healthy } }
+    environment: { <<: *client-env, OpcUaClient__ClientId: plant01-client, OpcUaClient__ServerId: plant01, OpcUaClient__Endpoint: "opc.tcp://opcua-plant:4845/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:plant01", OpcUaClient__SiteId: plant01, OpcUaClient__AssetId: motor01, OpcUaClient__Measurements__0: motor_speed, OpcUaClient__Measurements__1: machine_vibration, OpcUaClient__Measurements__2: motor_temperature, OpcUaClient__Measurements__3: energy_consumption, OpcUaClient__Measurements__4: equipment_load, OpcUaClient__Measurements__5: operational_state }
+
+  processor-1: { <<: *processor }
+  processor-2: { <<: *processor }
+  inserter-1: { <<: *inserter }
+  inserter-2: { <<: *inserter }
+  api:
+    build: { context: ., dockerfile: infrastructure/docker/api.Dockerfile }
+    restart: unless-stopped
+    depends_on: { postgres: { condition: service_healthy } }
+    environment: { ConnectionStrings__Telemetry: "Host=postgres;Database=ietp;Username=ietp;Password=ietp-dev-only", ASPNETCORE_URLS: "http://+:8080" }
+    healthcheck: { test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/live >/dev/null"], interval: 10s, timeout: 3s, retries: 10 }
+    ports: ["8080:8080"]
+  frontend:
+    build: { context: ., dockerfile: infrastructure/docker/frontend.Dockerfile }
+    restart: unless-stopped
+    depends_on: { api: { condition: service_healthy } }
+    ports: ["3000:80"]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    profiles: [observability]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./infrastructure/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
+    ports: ["4317:4317", "4318:4318", "9464:9464"]
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    profiles: [observability]
+    environment: { COLLECTOR_OTLP_ENABLED: "true" }
+    ports: ["16686:16686"]
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    profiles: [observability]
+    volumes: ["./infrastructure/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+  grafana:
+    image: grafana/grafana:12.2.1
+    profiles: [observability]
+    environment: { GF_SECURITY_ADMIN_PASSWORD: ietp-dev-only }
+    volumes: ["./infrastructure/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/ietp.yaml:ro", "grafana-data:/var/lib/grafana"]
+    ports: ["3001:3000"]
+
+volumes: { postgres-data: {}, kafka-data: {}, grafana-data: {} }

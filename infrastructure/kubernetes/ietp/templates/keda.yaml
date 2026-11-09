@@ -1,0 +1,22 @@
+# Requires KEDA. Kafka partition count is 12, so useful replicas are capped at 12.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: { name: telemetry-processor-lag }
+spec:
+  scaleTargetRef: { name: telemetry-processor }
+  minReplicaCount: {{ .Values.processor.replicas }}
+  maxReplicaCount: {{ .Values.processor.maxReplicas }}
+  triggers:
+    - type: kafka
+      metadata: { bootstrapServers: {{ .Values.kafka.bootstrapServers | quote }}, consumerGroup: telemetry-processors-v1, topic: telemetry.raw, lagThreshold: "1000", offsetResetPolicy: earliest, allowIdleConsumers: "false" }
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: { name: telemetry-inserter-lag }
+spec:
+  scaleTargetRef: { name: telemetry-inserter }
+  minReplicaCount: {{ .Values.inserter.replicas }}
+  maxReplicaCount: {{ .Values.inserter.maxReplicas }}
+  triggers:
+    - type: kafka
+      metadata: { bootstrapServers: {{ .Values.kafka.bootstrapServers | quote }}, consumerGroup: telemetry-inserters-v1, topic: telemetry.processed, lagThreshold: "1000", offsetResetPolicy: earliest, allowIdleConsumers: "false" }

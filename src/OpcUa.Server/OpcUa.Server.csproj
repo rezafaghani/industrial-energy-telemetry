@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.378.182" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BuildingBlocks/BuildingBlocks.csproj" />
+    <ProjectReference Include="../Telemetry.Domain/Telemetry.Domain.csproj" />
+  </ItemGroup>
+</Project>

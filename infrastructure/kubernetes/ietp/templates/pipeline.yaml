@@ -1,0 +1,80 @@
+{{- $connection := printf "Host=%s;Database=%s;Username=%s;Password=$(POSTGRES_PASSWORD)" .Values.postgres.host .Values.postgres.database .Values.postgres.username }}
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: telemetry-processor }
+spec:
+  replicas: {{ .Values.processor.replicas }}
+  selector: { matchLabels: { app: telemetry-processor } }
+  template:
+    metadata: { labels: { app: telemetry-processor, ietp-role: processor } }
+    spec:
+      containers:
+        - name: processor
+          image: "{{ .Values.image.registry }}/telemetry-processor:{{ .Values.image.tag }}"
+          env: [{ name: Processor__BootstrapServers, valueFrom: { configMapKeyRef: { name: ietp-config, key: kafka-bootstrap-servers } } }]
+          resources: {{ toYaml .Values.resources.workers | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: telemetry-inserter }
+spec:
+  replicas: {{ .Values.inserter.replicas }}
+  selector: { matchLabels: { app: telemetry-inserter } }
+  template:
+    metadata: { labels: { app: telemetry-inserter, ietp-role: inserter } }
+    spec:
+      containers:
+        - name: inserter
+          image: "{{ .Values.image.registry }}/telemetry-inserter:{{ .Values.image.tag }}"
+          env:
+            - { name: Inserter__BootstrapServers, valueFrom: { configMapKeyRef: { name: ietp-config, key: kafka-bootstrap-servers } } }
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: {{ .Values.postgres.passwordSecret }}, key: {{ .Values.postgres.passwordKey }} } } }
+            - { name: Inserter__ConnectionString, value: {{ $connection | quote }} }
+          resources: {{ toYaml .Values.resources.workers | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: telemetry-api }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: telemetry-api } }
+  template:
+    metadata: { labels: { app: telemetry-api, ietp-role: api } }
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.registry }}/telemetry-api:{{ .Values.image.tag }}"
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: {{ .Values.postgres.passwordSecret }}, key: {{ .Values.postgres.passwordKey }} } } }
+            - { name: ConnectionStrings__Telemetry, value: {{ $connection | quote }} }
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, initialDelaySeconds: 10, periodSeconds: 10 }
+          resources: {{ toYaml .Values.resources.api | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: telemetry-api }
+spec: { selector: { app: telemetry-api }, ports: [{ name: http, port: 8080, targetPort: http }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: telemetry-frontend }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: telemetry-frontend } }
+  template:
+    metadata: { labels: { app: telemetry-frontend } }
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.image.registry }}/telemetry-frontend:{{ .Values.image.tag }}"
+          ports: [{ name: http, containerPort: 80 }]
+          readinessProbe: { httpGet: { path: /, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /, port: http }, initialDelaySeconds: 10, periodSeconds: 10 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 250m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: telemetry-frontend }
+spec: { selector: { app: telemetry-frontend }, ports: [{ name: http, port: 80, targetPort: http }] }

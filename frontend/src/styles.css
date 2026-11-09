@@ -1,0 +1,6 @@
+:root { font-synthesis: none; text-rendering: optimizeLegibility; }
+body { margin: 0; min-width: 320px; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 16px; }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 16px; }
+.table-wrap { overflow: auto; border: 1px solid rgba(128,128,128,.25); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 800px; } th,td { padding: 12px 14px; text-align: left; border-bottom: 1px solid rgba(128,128,128,.2); font-size: 13px; } th { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }

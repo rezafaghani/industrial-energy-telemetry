@@ -1,0 +1,57 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+permissions: { contents: read }
+jobs:
+  dotnet:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: { POSTGRES_DB: ietp_test, POSTGRES_USER: ietp, POSTGRES_PASSWORD: ietp }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ietp -d ietp_test" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: 10.0.x, cache: true, cache-dependency-path: "**/*.csproj" }
+      - run: dotnet restore IndustrialEnergyTelemetry.slnx
+      - run: dotnet build IndustrialEnergyTelemetry.slnx --configuration Release --no-restore
+      - run: dotnet test IndustrialEnergyTelemetry.slnx --configuration Release --no-build --filter "Category!=EndToEnd" --logger trx --results-directory TestResults
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with: { name: test-results, path: TestResults }
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 24, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+  containers:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - { name: opcua-server, file: infrastructure/docker/dotnet-service.Dockerfile, args: "PROJECT=OpcUa.Server" }
+          - { name: opcua-client, file: infrastructure/docker/dotnet-service.Dockerfile, args: "PROJECT=OpcUa.Client" }
+          - { name: processor, file: infrastructure/docker/dotnet-service.Dockerfile, args: "PROJECT=Telemetry.Processor" }
+          - { name: inserter, file: infrastructure/docker/dotnet-service.Dockerfile, args: "PROJECT=Telemetry.Inserter" }
+          - { name: api, file: infrastructure/docker/api.Dockerfile, args: "" }
+          - { name: frontend, file: infrastructure/docker/frontend.Dockerfile, args: "" }
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with: { context: ., file: "${{ matrix.file }}", build-args: "${{ matrix.args }}", push: false, tags: "ietp/${{ matrix.name }}:ci" }
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/dependency-review-action@v4

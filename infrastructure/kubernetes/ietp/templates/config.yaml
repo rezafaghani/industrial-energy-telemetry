@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: ietp-config }
+data:
+  kafka-bootstrap-servers: {{ .Values.kafka.bootstrapServers | quote }}
+  postgres-host: {{ .Values.postgres.host | quote }}
+  postgres-database: {{ .Values.postgres.database | quote }}
+  postgres-username: {{ .Values.postgres.username | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: {{ .Values.postgres.passwordSecret }} }
+type: Opaque
+stringData:
+  # Replace this template value through a secrets manager or --set-file.
+  {{ .Values.postgres.passwordKey }}: change-me
