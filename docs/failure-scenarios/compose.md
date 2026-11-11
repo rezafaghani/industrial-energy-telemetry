@@ -32,12 +32,12 @@ Inserters cannot commit processed offsets while their transaction fails. Kafka r
 
 ## Replay and deduplication
 
-Stop inserters, reset the consumer group, then restart them:
+Stop the inserter, reset the consumer group, then restart it:
 
 ```bash
-docker compose stop inserter-1 inserter-2
+docker compose stop inserter-1
 docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 --group telemetry-inserters-v1 --topic telemetry.processed --reset-offsets --to-earliest --execute
-docker compose start inserter-1 inserter-2
+docker compose start inserter-1
 ```
 
 Compare `telemetry_event_receipts` and `telemetry_measurements` counts before and after; replayed event IDs do not add rows.

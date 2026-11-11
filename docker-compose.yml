@@ -64,6 +64,7 @@ services:
     image: apache/kafka:4.1.0
     restart: unless-stopped
     environment:
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
@@ -98,18 +99,22 @@ services:
     ports: ["4841:4841"]
   opcua-solar:
     <<: *server
+    profiles: [full-demo]
     environment: { <<: *server-env, OpcUa__ServerId: solarfarm01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4842/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:solarfarm01", OpcUa__AssetId: inverter01, OpcUa__Profile: SolarFarm, OpcUa__Seed: 22 }
     ports: ["4842:4842"]
   opcua-grid:
     <<: *server
+    profiles: [full-demo]
     environment: { <<: *server-env, OpcUa__ServerId: grid01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4843/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:grid01", OpcUa__AssetId: feeder01, OpcUa__Profile: PowerGrid, OpcUa__Seed: 33 }
     ports: ["4843:4843"]
   opcua-battery:
     <<: *server
+    profiles: [full-demo]
     environment: { <<: *server-env, OpcUa__ServerId: battery01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4844/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:battery01", OpcUa__AssetId: bess01, OpcUa__Profile: BatteryStorage, OpcUa__Seed: 44 }
     ports: ["4844:4844"]
   opcua-plant:
     <<: *server
+    profiles: [full-demo]
     environment: { <<: *server-env, OpcUa__ServerId: plant01, OpcUa__Endpoint: "opc.tcp://0.0.0.0:4845/ietp", OpcUa__NamespaceUri: "urn:ietp:dk:demo:plant01", OpcUa__AssetId: motor01, OpcUa__Profile: IndustrialPlant, OpcUa__Seed: 55 }
     ports: ["4845:4845"]
 
@@ -119,25 +124,29 @@ services:
     environment: { <<: *client-env, OpcUaClient__ClientId: windfarm01-client, OpcUaClient__ServerId: windfarm01, OpcUaClient__Endpoint: "opc.tcp://opcua-wind:4841/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:windfarm01", OpcUaClient__SiteId: windfarm01, OpcUaClient__AssetId: turbine01, OpcUaClient__Measurements__0: wind_speed, OpcUaClient__Measurements__1: rotor_speed, OpcUaClient__Measurements__2: active_power, OpcUaClient__Measurements__3: generator_temperature, OpcUaClient__Measurements__4: operational_status, OpcUaClient__Measurements__5: cumulative_energy }
   client-solar:
     <<: *client
+    profiles: [full-demo]
     depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-solar: { condition: service_healthy } }
     environment: { <<: *client-env, OpcUaClient__ClientId: solarfarm01-client, OpcUaClient__ServerId: solarfarm01, OpcUaClient__Endpoint: "opc.tcp://opcua-solar:4842/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:solarfarm01", OpcUaClient__SiteId: solarfarm01, OpcUaClient__AssetId: inverter01, OpcUaClient__Measurements__0: solar_irradiance, OpcUaClient__Measurements__1: panel_temperature, OpcUaClient__Measurements__2: dc_voltage, OpcUaClient__Measurements__3: dc_current, OpcUaClient__Measurements__4: active_power, OpcUaClient__Measurements__5: inverter_status }
   client-grid:
     <<: *client
+    profiles: [full-demo]
     depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-grid: { condition: service_healthy } }
     environment: { <<: *client-env, OpcUaClient__ClientId: grid01-client, OpcUaClient__ServerId: grid01, OpcUaClient__Endpoint: "opc.tcp://opcua-grid:4843/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:grid01", OpcUaClient__SiteId: grid01, OpcUaClient__AssetId: feeder01, OpcUaClient__Measurements__0: grid_frequency, OpcUaClient__Measurements__1: line_voltage, OpcUaClient__Measurements__2: current, OpcUaClient__Measurements__3: active_power, OpcUaClient__Measurements__4: reactive_power, OpcUaClient__Measurements__5: power_factor, OpcUaClient__Measurements__6: connection_status }
   client-battery:
     <<: *client
+    profiles: [full-demo]
     depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-battery: { condition: service_healthy } }
     environment: { <<: *client-env, OpcUaClient__ClientId: battery01-client, OpcUaClient__ServerId: battery01, OpcUaClient__Endpoint: "opc.tcp://opcua-battery:4844/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:battery01", OpcUaClient__SiteId: battery01, OpcUaClient__AssetId: bess01, OpcUaClient__Measurements__0: state_of_charge, OpcUaClient__Measurements__1: charge_discharge_power, OpcUaClient__Measurements__2: battery_voltage, OpcUaClient__Measurements__3: battery_current, OpcUaClient__Measurements__4: cell_temperature, OpcUaClient__Measurements__5: operating_mode }
   client-plant:
     <<: *client
+    profiles: [full-demo]
     depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-plant: { condition: service_healthy } }
     environment: { <<: *client-env, OpcUaClient__ClientId: plant01-client, OpcUaClient__ServerId: plant01, OpcUaClient__Endpoint: "opc.tcp://opcua-plant:4845/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:plant01", OpcUaClient__SiteId: plant01, OpcUaClient__AssetId: motor01, OpcUaClient__Measurements__0: motor_speed, OpcUaClient__Measurements__1: machine_vibration, OpcUaClient__Measurements__2: motor_temperature, OpcUaClient__Measurements__3: energy_consumption, OpcUaClient__Measurements__4: equipment_load, OpcUaClient__Measurements__5: operational_state }
 
   processor-1: { <<: *processor }
-  processor-2: { <<: *processor }
+  processor-2: { <<: *processor, profiles: [scale-out] }
   inserter-1: { <<: *inserter }
-  inserter-2: { <<: *inserter }
+  inserter-2: { <<: *inserter, profiles: [scale-out] }
   api:
     build: { context: ., dockerfile: infrastructure/docker/api.Dockerfile }
     restart: unless-stopped

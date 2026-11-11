@@ -94,7 +94,7 @@ Retention defaults to 30 days in `platform_settings`. Schedule `SELECT purge_exp
 
 ## Local execution
 
-With Docker Compose or Podman Compose and at least 8 GB available RAM:
+With Docker Compose or Podman Compose:
 
 ```bash
 # Docker
@@ -102,6 +102,14 @@ docker compose up --build
 
 # Podman
 podman compose up --build
+```
+
+The default stack runs the wind site with one processor and inserter. Enable
+`full-demo` for all five simulated sites, or `scale-out` to start the second
+processor and inserter:
+
+```bash
+docker compose --profile full-demo --profile scale-out up --build
 ```
 
 - Dashboard: <http://localhost:3000>
@@ -151,6 +159,7 @@ npm run lint
 The Testcontainers integration tests require a working Docker-compatible daemon. After Compose is healthy, run:
 
 ```bash
+docker compose --profile full-demo up --build -d
 IETP_BASE_URL=http://localhost:3000 dotnet test tests/Telemetry.EndToEndTests
 ```
 
