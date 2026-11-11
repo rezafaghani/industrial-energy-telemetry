@@ -1,6 +1,6 @@
 # Industrial Energy Telemetry Platform
 
-IETP is an open-source .NET 10 and React platform that moves real OPC UA subscription data through Kafka, validates it in horizontally scalable consumer groups, persists it idempotently in PostgreSQL, and exposes live and historical operations data through ASP.NET Core, SignalR, and an industrial monitoring dashboard.
+IETP is an open-source .NET 11 and React platform that moves real OPC UA subscription data through Kafka, validates it in horizontally scalable consumer groups, persists it idempotently in PostgreSQL, and exposes live and historical operations data through ASP.NET Core, SignalR, and an industrial monitoring dashboard.
 
 The project is a portfolio-grade reference for industrial software, power systems, and energy-data engineering. Running services use real OPC UA, Kafka, and PostgreSQL integrations; mocks are limited to isolated tests.
 
@@ -25,7 +25,7 @@ flowchart LR
 
 ## Stack
 
-- .NET 10, ASP.NET Core, Worker Services
+- .NET 11, ASP.NET Core, Worker Services
 - Official OPC Foundation UA .NET libraries
 - Confluent.Kafka and Apache Kafka/KRaft
 - PostgreSQL 18 and Npgsql

@@ -1,12 +1,12 @@
 # Implementation status
 
-**Last checked:** 2026-11-09  
+**Last checked:** 2026-11-11
 **Overall:** Core services and dashboard are implemented in source. The complete live platform is not yet verified; do not treat deployment or end-to-end acceptance criteria as passed.
 
 ## Verified in this environment
 
-- .NET 10 solution builds with zero warnings and errors.
-- Unit tests pass: 16 passed, 0 failed.
+- .NET 11 solution builds with zero warnings and errors.
+- Unit tests pass: 17 passed, 0 failed.
 - Frontend dependency installation from the lockfile, TypeScript typecheck, production build, and ESLint pass.
 - `docker-compose config --quiet` accepts the Compose configuration.
 

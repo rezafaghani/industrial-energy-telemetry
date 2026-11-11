@@ -5,7 +5,7 @@
 
 ## Context and decision
 
-IETP must preserve industrial source semantics while scaling ingestion, processing, persistence, and querying independently. It will use independently deployable .NET 10 processes, Kafka for durable hand-off, PostgreSQL for authoritative metadata and measurements, and a browser-facing API with SignalR. Delivery is at least once; stable event IDs and a database uniqueness boundary make replays safe.
+IETP must preserve industrial source semantics while scaling ingestion, processing, persistence, and querying independently. It will use independently deployable .NET 11 processes, Kafka for durable hand-off, PostgreSQL for authoritative metadata and measurements, and a browser-facing API with SignalR. Delivery is at least once; stable event IDs and a database uniqueness boundary make replays safe.
 
 One configurable server executable and one configurable client executable will provide the five instances without copied code. The initial deployment owns each server/client assignment statically. HA client ownership is deferred until the core path works; a lease or leader election can later enforce one active subscriber per assignment.
 

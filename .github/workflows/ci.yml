@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
-        with: { dotnet-version: 10.0.x, cache: true, cache-dependency-path: "**/*.csproj" }
+        with: { dotnet-version: 11.0.x, cache: true, cache-dependency-path: "**/*.csproj" }
       - run: dotnet restore IndustrialEnergyTelemetry.slnx
       - run: dotnet build IndustrialEnergyTelemetry.slnx --configuration Release --no-restore
       - run: dotnet test IndustrialEnergyTelemetry.slnx --configuration Release --no-build --filter "Category!=EndToEnd" --logger trx --results-directory TestResults
