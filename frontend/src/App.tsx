@@ -156,6 +156,8 @@ function Overview() {
 function Infrastructure() {
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers, refetchInterval: 5000 });
   const clients = useQuery({ queryKey: ['clients'], queryFn: api.clients, refetchInterval: 5000 });
+  const collectors = useQuery({ queryKey: ['collectors'], queryFn: api.collectors, refetchInterval: 5000 });
+  const assignments = useQuery({ queryKey: ['assignments'], queryFn: api.assignments, refetchInterval: 5000 });
 
   return (
     <Stack spacing={3}>
@@ -166,6 +168,14 @@ function Infrastructure() {
       <Panel title="Assigned clients">
         <QueryNotice loading={clients.isLoading} error={clients.error} />
         {clients.data && <StatusCards rows={clients.data} emptyMessage="No OPC UA clients are registered." />}
+      </Panel>
+      <Panel title="Collectors">
+        <QueryNotice loading={collectors.isLoading} error={collectors.error} />
+        {collectors.data && <StatusCards rows={collectors.data} emptyMessage="No dynamic collectors are registered." />}
+      </Panel>
+      <Panel title="Endpoint ownership leases">
+        <QueryNotice loading={assignments.isLoading} error={assignments.error} />
+        {assignments.data && <DataTable rows={assignments.data} emptyMessage="No endpoint leases have been acquired." />}
       </Panel>
     </Stack>
   );

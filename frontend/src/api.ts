@@ -61,6 +61,8 @@ export const api = {
   servers: () => get<Row[]>('/api/servers'),
   clients: () => get<Row[]>('/api/clients'),
   services: () => get<Row[]>('/api/services'),
+  collectors: () => get<Row[]>('/api/control-plane/collectors'),
+  assignments: () => get<Row[]>('/api/control-plane/assignments'),
   latest: () => get<Row[]>('/api/telemetry/latest'),
   series: (search = '') => get<Series[]>(`/api/series?search=${encodeURIComponent(search)}&pageSize=200`),
   history: (id: string, hours: number) => {

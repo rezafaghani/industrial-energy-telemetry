@@ -24,6 +24,10 @@ x-client: &client
   environment: &client-env
     OpcUaClient__KafkaBootstrapServers: kafka:9092
     OpcUaClient__UseSecurity: "false"
+    OpcUaClient__CoordinatorUrl: http://api:8080
+    OpcUaClient__CollectorCapacity: "1"
+    OpcUaClient__LeaseSeconds: "30"
+    OpcUaClient__CoordinatorIntervalSeconds: "10"
 x-processor: &processor
   build:
     <<: *dotnet-build

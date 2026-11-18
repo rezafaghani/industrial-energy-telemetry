@@ -19,6 +19,84 @@ public static class ApiEndpoints
         api.MapGet("/telemetry/quality", (NpgsqlDataSource db, CancellationToken ct) => Query(db, "SELECT quality,count(*) AS count FROM telemetry_measurements WHERE source_timestamp > now()-interval '24 hours' GROUP BY quality", ct));
         api.MapGet("/overview", Overview);
         api.MapGet("/statistics", Statistics);
+
+        var control = api.MapGroup("/control-plane");
+        control.MapGet("/collectors", (NpgsqlDataSource db, CancellationToken ct) => Query(db, """
+            SELECT c.id,c.site_key,c.capacity,c.draining,c.registered_at,c.last_heartbeat_at,
+              CASE WHEN c.last_heartbeat_at>now()-interval '30 seconds' AND NOT c.draining THEN 'Available' ELSE 'Unavailable' END AS status,
+              h.health,h.active_sessions,h.buffer_items,h.buffer_bytes,h.last_error
+            FROM collectors c LEFT JOIN collector_health h ON h.collector_id=c.id ORDER BY c.id
+            """, ct));
+        control.MapGet("/assignments", (NpgsqlDataSource db, CancellationToken ct) => Query(db, """
+            SELECT a.endpoint_id,s.server_key,a.collector_id,a.lease_epoch,a.lease_acquired_at,a.lease_expires_at,
+              a.configuration_version,a.lease_expires_at>now() AS active
+            FROM collector_assignments a JOIN opcua_servers s ON s.id=a.endpoint_id ORDER BY s.server_key
+            """, ct));
+        control.MapGet("/configuration-versions", (NpgsqlDataSource db, CancellationToken ct) => Query(db,
+            "SELECT version,created_at,created_by,description FROM configuration_versions ORDER BY version DESC", ct));
+        control.MapGet("/certificates", (NpgsqlDataSource db, CancellationToken ct) => Query(db, """
+            SELECT id,identity_reference,subject,thumbprint,not_before,not_after,trust_reference,revoked,updated_at,
+              CASE WHEN revoked THEN 'Revoked' WHEN not_after<=now() THEN 'Expired'
+                WHEN not_after<=now()+interval '30 days' THEN 'Expiring' ELSE 'Valid' END AS status
+            FROM certificate_metadata ORDER BY not_after
+            """, ct));
+        control.MapPost("/collectors", RegisterCollector);
+        control.MapPut("/collectors/{collectorId}/health", ReportCollectorHealth);
+        control.MapPost("/collectors/{collectorId}/assignments", AcquireAssignments);
+        control.MapPut("/collectors/{collectorId}/assignments/{endpointId:guid}", RenewAssignment);
+        control.MapGet("/collectors/{collectorId}/assignments/{endpointId:guid}/configuration", GetAssignmentConfiguration);
+        control.MapDelete("/collectors/{collectorId}", DeregisterCollector);
+    }
+
+    private static async Task<IResult> RegisterCollector(RegisterCollectorRequest request, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.CollectorId) || request.CollectorId.Length > 200 || request.Capacity is < 1 or > 100)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["collector"] = ["collectorId is required (maximum 200 characters) and capacity must be between 1 and 100."] });
+        await coordinator.RegisterAsync(request, ct).ConfigureAwait(false);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> ReportCollectorHealth(string collectorId, CollectorHealthRequest request, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Health) || request.ActiveSessions < 0 || request.BufferItems < 0 || request.BufferBytes < 0)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["health"] = ["health is required and counters cannot be negative."] });
+        try
+        {
+            await coordinator.ReportHealthAsync(collectorId, request, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return Results.NotFound();
+        }
+    }
+
+    private static async Task<IResult> AcquireAssignments(string collectorId, CollectorCoordinator coordinator, int leaseSeconds = 30, CancellationToken ct = default)
+    {
+        if (leaseSeconds is < 5 or > 300)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["leaseSeconds"] = ["leaseSeconds must be between 5 and 300."] });
+        return Results.Ok(await coordinator.AcquireAsync(collectorId, leaseSeconds, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> RenewAssignment(string collectorId, Guid endpointId, RenewLeaseRequest request, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (request.LeaseEpoch < 1 || request.LeaseSeconds is < 5 or > 300)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["lease"] = ["leaseEpoch must be positive and leaseSeconds must be between 5 and 300."] });
+        var assignment = await coordinator.RenewAsync(collectorId, endpointId, request.LeaseEpoch, request.LeaseSeconds, ct).ConfigureAwait(false);
+        return assignment is null ? Results.Conflict(new { error = "The lease is expired, stale, or owned by another collector." }) : Results.Ok(assignment);
+    }
+
+    private static async Task<IResult> DeregisterCollector(string collectorId, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        await coordinator.DeregisterAsync(collectorId, ct).ConfigureAwait(false);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> GetAssignmentConfiguration(string collectorId, Guid endpointId, long leaseEpoch, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (leaseEpoch < 1) return Results.BadRequest();
+        var configuration = await coordinator.GetConfigurationAsync(collectorId, endpointId, leaseEpoch, ct).ConfigureAwait(false);
+        return configuration is null ? Results.Conflict(new { error = "The lease is expired, stale, or owned by another collector." }) : Results.Ok(configuration);
     }
 
     private static async Task<IResult> SearchSeries(NpgsqlDataSource db, string? search, string? site, string? asset, string? measurementType, int page = 1, int pageSize = 50, CancellationToken ct = default)

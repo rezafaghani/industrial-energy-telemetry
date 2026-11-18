@@ -4,8 +4,16 @@ using Npgsql;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Telemetry")
-    ?? throw new InvalidOperationException("ConnectionStrings:Telemetry is required.")));
+builder.Services.AddSingleton(_ =>
+{
+    var connection = new NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("Telemetry")
+        ?? throw new InvalidOperationException("ConnectionStrings:Telemetry is required."))
+    {
+        SearchPath = "control_plane,telemetry,operations,public"
+    };
+    return NpgsqlDataSource.Create(connection.ConnectionString);
+});
+builder.Services.AddSingleton<CollectorCoordinator>();
 builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("postgres", tags: ["ready"]);

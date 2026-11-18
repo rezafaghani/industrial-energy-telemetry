@@ -14,6 +14,9 @@
 - [x] Correlated simulation, anomalies, failures, deterministic seeds, client retry, and bounded event buffering implemented.
 - [ ] Five server/client instances and subscription notifications verified together.
 - [ ] Kafka raw-topic publication and full processor/inserter path verified at runtime.
+- [x] Collector registry, health, capacity, site-aware assignment, database-time leases, and fencing epochs implemented.
+- [ ] Coordinator concurrency/reassignment verified against live PostgreSQL; Testcontainers is unavailable in this workspace.
+- [ ] Multi-endpoint collector sessions and durable edge buffer implemented.
 
 ## Processing and persistence
 
