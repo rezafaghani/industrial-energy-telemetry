@@ -20,4 +20,9 @@ ALTER TABLE IF EXISTS public.opcua_clients SET SCHEMA operations;
 ALTER TABLE IF EXISTS public.service_instances SET SCHEMA operations;
 ALTER TABLE IF EXISTS public.service_heartbeats SET SCHEMA operations;
 ALTER TABLE IF EXISTS public.platform_settings SET SCHEMA operations;
-ALTER FUNCTION IF EXISTS public.purge_expired_telemetry() SET SCHEMA telemetry;
+DO $$
+BEGIN
+  IF to_regprocedure('public.purge_expired_telemetry()') IS NOT NULL THEN
+    ALTER FUNCTION public.purge_expired_telemetry() SET SCHEMA telemetry;
+  END IF;
+END $$;

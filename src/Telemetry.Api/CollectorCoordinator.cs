@@ -13,6 +13,8 @@ public sealed record EndpointTag(string Measurement, string NodeId, string Unit)
 public sealed record EndpointConfiguration(Guid EndpointId, string EndpointKey, string Endpoint, string NamespaceUri,
     string SiteKey, string AssetKey, string SecurityPolicy, string SecurityMode, long ConfigurationVersion,
     IReadOnlyList<EndpointTag> Tags);
+public sealed record RegisterServerRequest(string ServerKey, string DisplayName, string Endpoint, string NamespaceUri,
+    string SiteKey, string SiteName, string AssetKey, string AssetName, string[] Measurements);
 
 public sealed class CollectorCoordinator(NpgsqlDataSource dataSource)
 {
@@ -71,7 +73,8 @@ public sealed class CollectorCoordinator(NpgsqlDataSource dataSource)
               SELECT s.id,s.configuration_version
               FROM opcua_servers s CROSS JOIN owner o JOIN sites site ON site.id=s.site_id
               LEFT JOIN collector_assignments a ON a.endpoint_id=s.id
-              WHERE s.enabled AND (o.site_key IS NULL OR o.site_key=site.site_key)
+              WHERE s.enabled AND EXISTS (SELECT 1 FROM series_definitions d WHERE d.opcua_server_id=s.id AND d.active)
+                AND (o.site_key IS NULL OR o.site_key=site.site_key)
                 AND (a.endpoint_id IS NULL OR a.lease_expires_at<=now())
               ORDER BY a.lease_expires_at NULLS FIRST,s.server_key
               FOR UPDATE OF s SKIP LOCKED

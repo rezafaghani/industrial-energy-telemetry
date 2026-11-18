@@ -56,9 +56,14 @@ async function get<T>(path: string): Promise<T> {
   }
   return response.json() as Promise<T>;
 }
+async function post(path: string, body: unknown): Promise<void> {
+  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!response.ok) throw new Error((await response.text()) || `${response.status} ${response.statusText}`);
+}
 export const api = {
   overview: () => get<Overview>('/api/overview'),
   servers: () => get<Row[]>('/api/servers'),
+  registerServer: (server: Record<string, string | string[]>) => post('/api/servers', server),
   clients: () => get<Row[]>('/api/clients'),
   services: () => get<Row[]>('/api/services'),
   collectors: () => get<Row[]>('/api/control-plane/collectors'),

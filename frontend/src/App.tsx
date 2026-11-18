@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { HubConnectionBuilder } from '@microsoft/signalr';
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   AppBar,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -154,13 +155,34 @@ function Overview() {
 }
 
 function Infrastructure() {
+  const queryClient = useQueryClient();
+  const [server, setServer] = useState({ serverKey: '', displayName: '', endpoint: '', namespaceUri: '', siteKey: '', siteName: '', assetKey: '', assetName: '', measurements: '' });
   const servers = useQuery({ queryKey: ['servers'], queryFn: api.servers, refetchInterval: 5000 });
   const clients = useQuery({ queryKey: ['clients'], queryFn: api.clients, refetchInterval: 5000 });
   const collectors = useQuery({ queryKey: ['collectors'], queryFn: api.collectors, refetchInterval: 5000 });
   const assignments = useQuery({ queryKey: ['assignments'], queryFn: api.assignments, refetchInterval: 5000 });
+  const registration = useMutation({
+    mutationFn: () => api.registerServer({ ...server, measurements: server.measurements.split(',').map(value => value.trim()).filter(Boolean) }),
+    onSuccess: async () => {
+      setServer({ serverKey: '', displayName: '', endpoint: '', namespaceUri: '', siteKey: '', siteName: '', assetKey: '', assetName: '', measurements: '' });
+      await queryClient.invalidateQueries({ queryKey: ['servers'] });
+    },
+  });
 
   return (
     <Stack spacing={3}>
+      <Panel title="Register OPC UA server">
+        <Box component="form" onSubmit={event => { event.preventDefault(); registration.mutate(); }}>
+          <Box className="server-form">
+            {Object.entries(server).map(([key, value]) => (
+              <TextField key={key} required label={key === 'measurements' ? 'Numeric measurements (comma separated)' : key.replace(/([A-Z])/g, ' $1')}
+                value={value} onChange={event => setServer(current => ({ ...current, [key]: event.target.value }))} />
+            ))}
+          </Box>
+          <Button type="submit" variant="contained" sx={{ mt: 2 }} disabled={registration.isPending}>Register server</Button>
+          {registration.error && <Alert severity="error" sx={{ mt: 2 }}>{registration.error.message}</Alert>}
+        </Box>
+      </Panel>
       <Panel title="OPC UA servers">
         <QueryNotice loading={servers.isLoading} error={servers.error} />
         {servers.data && <StatusCards rows={servers.data} emptyMessage="No OPC UA servers are registered." />}
