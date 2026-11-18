@@ -8,6 +8,7 @@ public static class ApiEndpoints
     {
         var api = app.MapGroup("/api");
         api.MapGet("/servers", (NpgsqlDataSource db, CancellationToken ct) => Query(db, "SELECT id,server_key,display_name,endpoint,namespace_uri,CASE WHEN last_communication>now()-interval '15 seconds' THEN last_status ELSE 'Disconnected' END AS status,last_communication FROM opcua_servers ORDER BY server_key", ct));
+        api.MapPost("/servers", RegisterServer);
         api.MapGet("/clients", (NpgsqlDataSource db, CancellationToken ct) => Query(db, "SELECT c.id,c.client_key,s.server_key,CASE WHEN c.last_communication>now()-interval '15 seconds' THEN c.last_status ELSE 'Disconnected' END AS status,c.last_communication,c.reconnection_attempts FROM opcua_clients c JOIN opcua_servers s ON s.id=c.server_id ORDER BY c.client_key", ct));
         api.MapGet("/sites", (NpgsqlDataSource db, CancellationToken ct) => Query(db, "SELECT id,site_key,display_name,country_code,time_zone FROM sites ORDER BY site_key", ct));
         api.MapGet("/assets", (NpgsqlDataSource db, CancellationToken ct) => Query(db, "SELECT a.id,a.asset_key,a.display_name,a.asset_type,s.site_key FROM assets a JOIN sites s ON s.id=a.site_id ORDER BY a.asset_key", ct));
@@ -19,6 +20,145 @@ public static class ApiEndpoints
         api.MapGet("/telemetry/quality", (NpgsqlDataSource db, CancellationToken ct) => Query(db, "SELECT quality,count(*) AS count FROM telemetry_measurements WHERE source_timestamp > now()-interval '24 hours' GROUP BY quality", ct));
         api.MapGet("/overview", Overview);
         api.MapGet("/statistics", Statistics);
+
+        var control = api.MapGroup("/control-plane");
+        control.MapGet("/collectors", (NpgsqlDataSource db, CancellationToken ct) => Query(db, """
+            SELECT c.id,c.site_key,c.capacity,c.draining,c.registered_at,c.last_heartbeat_at,
+              CASE WHEN c.last_heartbeat_at>now()-interval '30 seconds' AND NOT c.draining THEN 'Available' ELSE 'Unavailable' END AS status,
+              h.health,h.active_sessions,h.buffer_items,h.buffer_bytes,h.last_error
+            FROM collectors c LEFT JOIN collector_health h ON h.collector_id=c.id ORDER BY c.id
+            """, ct));
+        control.MapGet("/assignments", (NpgsqlDataSource db, CancellationToken ct) => Query(db, """
+            SELECT a.endpoint_id,s.server_key,a.collector_id,a.lease_epoch,a.lease_acquired_at,a.lease_expires_at,
+              a.configuration_version,a.lease_expires_at>now() AS active
+            FROM collector_assignments a JOIN opcua_servers s ON s.id=a.endpoint_id ORDER BY s.server_key
+            """, ct));
+        control.MapGet("/configuration-versions", (NpgsqlDataSource db, CancellationToken ct) => Query(db,
+            "SELECT version,created_at,created_by,description FROM configuration_versions ORDER BY version DESC", ct));
+        control.MapGet("/certificates", (NpgsqlDataSource db, CancellationToken ct) => Query(db, """
+            SELECT id,identity_reference,subject,thumbprint,not_before,not_after,trust_reference,revoked,updated_at,
+              CASE WHEN revoked THEN 'Revoked' WHEN not_after<=now() THEN 'Expired'
+                WHEN not_after<=now()+interval '30 days' THEN 'Expiring' ELSE 'Valid' END AS status
+            FROM certificate_metadata ORDER BY not_after
+            """, ct));
+        control.MapPost("/collectors", RegisterCollector);
+        control.MapPut("/collectors/{collectorId}/health", ReportCollectorHealth);
+        control.MapPost("/collectors/{collectorId}/assignments", AcquireAssignments);
+        control.MapPut("/collectors/{collectorId}/assignments/{endpointId:guid}", RenewAssignment);
+        control.MapGet("/collectors/{collectorId}/assignments/{endpointId:guid}/configuration", GetAssignmentConfiguration);
+        control.MapDelete("/collectors/{collectorId}", DeregisterCollector);
+    }
+
+    private static async Task<IResult> RegisterServer(RegisterServerRequest request, NpgsqlDataSource db, CancellationToken ct)
+    {
+        var measurements = (request.Measurements ?? []).Where(value => value is not null).Select(value => value.Trim()).Where(value => value.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+        if (new[] { request.ServerKey, request.DisplayName, request.Endpoint, request.NamespaceUri, request.SiteKey, request.SiteName, request.AssetKey, request.AssetName }.Any(string.IsNullOrWhiteSpace)
+            || measurements.Length == 0 || !Uri.TryCreate(request.Endpoint, UriKind.Absolute, out var endpoint) || endpoint.Scheme != "opc.tcp")
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["server"] = ["All fields and at least one measurement are required; endpoint must be an absolute opc.tcp URI."] });
+        if (measurements.Any(value => value.Length > 200) || new[] { request.ServerKey, request.SiteKey, request.AssetKey }.Any(value => value.Length > 200))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["server"] = ["Keys and measurements cannot exceed 200 characters."] });
+
+        await using var connection = await db.OpenConnectionAsync(ct).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var siteId = Guid.NewGuid();
+            var assetId = Guid.NewGuid();
+            var serverId = Guid.NewGuid();
+            await using var command = new NpgsqlCommand("""
+                INSERT INTO sites(id,site_key,display_name,country_code,time_zone) VALUES($1,$2,$3,'XX','UTC')
+                  ON CONFLICT(site_key) DO UPDATE SET display_name=excluded.display_name RETURNING id;
+                """, connection, transaction);
+            command.Parameters.AddWithValue(siteId); command.Parameters.AddWithValue(request.SiteKey); command.Parameters.AddWithValue(request.SiteName);
+            siteId = (Guid)(await command.ExecuteScalarAsync(ct).ConfigureAwait(false))!;
+
+            command.CommandText = """
+                INSERT INTO assets(id,site_id,asset_key,display_name,asset_type) VALUES($1,$2,$3,$4,'OPC UA asset')
+                  ON CONFLICT(site_id,asset_key) DO UPDATE SET display_name=excluded.display_name RETURNING id;
+                """;
+            command.Parameters.Clear(); command.Parameters.AddWithValue(assetId); command.Parameters.AddWithValue(siteId); command.Parameters.AddWithValue(request.AssetKey); command.Parameters.AddWithValue(request.AssetName);
+            assetId = (Guid)(await command.ExecuteScalarAsync(ct).ConfigureAwait(false))!;
+
+            command.CommandText = """
+                INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name,site_id,security_policy,security_mode)
+                VALUES($1,$2,$3,$4,$5,$6,'http://opcfoundation.org/UA/SecurityPolicy#None','None');
+                """;
+            command.Parameters.Clear(); command.Parameters.AddWithValue(serverId); command.Parameters.AddWithValue(request.ServerKey); command.Parameters.AddWithValue(request.Endpoint);
+            command.Parameters.AddWithValue(request.NamespaceUri); command.Parameters.AddWithValue(request.DisplayName); command.Parameters.AddWithValue(siteId);
+            await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
+            foreach (var measurement in measurements)
+            {
+                // shortcut: UI registration currently creates numeric series, add typed measurement fields when non-numeric devices are registered here.
+                command.CommandText = """
+                    INSERT INTO series_definitions(id,series_key,display_name,site_id,asset_id,measurement_id,measurement_type,unit,
+                      opcua_server_id,namespace_uri,node_id,data_type,description)
+                    VALUES($1,$2,$3,$4,$5,$6,$6,'',$7,$8,$9,'Double','Registered from the control room.');
+                    """;
+                command.Parameters.Clear(); command.Parameters.AddWithValue(Guid.NewGuid()); command.Parameters.AddWithValue($"{request.SiteKey}.{request.AssetKey}.{measurement}");
+                command.Parameters.AddWithValue(measurement); command.Parameters.AddWithValue(siteId); command.Parameters.AddWithValue(assetId); command.Parameters.AddWithValue(measurement);
+                command.Parameters.AddWithValue(serverId); command.Parameters.AddWithValue(request.NamespaceUri); command.Parameters.AddWithValue($"asset/{request.AssetKey}/{measurement}");
+                await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            return Results.Created($"/api/servers/{serverId}", new { id = serverId });
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            await transaction.RollbackAsync(ct).ConfigureAwait(false);
+            return Results.Conflict(new { error = "A server or series with the same key is already registered." });
+        }
+    }
+
+    private static async Task<IResult> RegisterCollector(RegisterCollectorRequest request, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.CollectorId) || request.CollectorId.Length > 200 || request.Capacity is < 1 or > 100)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["collector"] = ["collectorId is required (maximum 200 characters) and capacity must be between 1 and 100."] });
+        await coordinator.RegisterAsync(request, ct).ConfigureAwait(false);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> ReportCollectorHealth(string collectorId, CollectorHealthRequest request, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Health) || request.ActiveSessions < 0 || request.BufferItems < 0 || request.BufferBytes < 0)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["health"] = ["health is required and counters cannot be negative."] });
+        try
+        {
+            await coordinator.ReportHealthAsync(collectorId, request, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return Results.NotFound();
+        }
+    }
+
+    private static async Task<IResult> AcquireAssignments(string collectorId, CollectorCoordinator coordinator, int leaseSeconds = 30, CancellationToken ct = default)
+    {
+        if (leaseSeconds is < 5 or > 300)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["leaseSeconds"] = ["leaseSeconds must be between 5 and 300."] });
+        return Results.Ok(await coordinator.AcquireAsync(collectorId, leaseSeconds, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> RenewAssignment(string collectorId, Guid endpointId, RenewLeaseRequest request, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (request.LeaseEpoch < 1 || request.LeaseSeconds is < 5 or > 300)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["lease"] = ["leaseEpoch must be positive and leaseSeconds must be between 5 and 300."] });
+        var assignment = await coordinator.RenewAsync(collectorId, endpointId, request.LeaseEpoch, request.LeaseSeconds, ct).ConfigureAwait(false);
+        return assignment is null ? Results.Conflict(new { error = "The lease is expired, stale, or owned by another collector." }) : Results.Ok(assignment);
+    }
+
+    private static async Task<IResult> DeregisterCollector(string collectorId, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        await coordinator.DeregisterAsync(collectorId, ct).ConfigureAwait(false);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> GetAssignmentConfiguration(string collectorId, Guid endpointId, long leaseEpoch, CollectorCoordinator coordinator, CancellationToken ct)
+    {
+        if (leaseEpoch < 1) return Results.BadRequest();
+        var configuration = await coordinator.GetConfigurationAsync(collectorId, endpointId, leaseEpoch, ct).ConfigureAwait(false);
+        return configuration is null ? Results.Conflict(new { error = "The lease is expired, stale, or owned by another collector." }) : Results.Ok(configuration);
     }
 
     private static async Task<IResult> SearchSeries(NpgsqlDataSource db, string? search, string? site, string? asset, string? measurementType, int page = 1, int pageSize = 50, CancellationToken ct = default)

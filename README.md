@@ -66,6 +66,10 @@ dk.demo.battery01.bess01.state_of_charge
 dk.demo.plant01.motor01.machine_vibration
 ```
 
+## Control plane
+
+PostgreSQL stores collector registration, health, capacity, site-aware endpoint assignments, configuration versions, certificate metadata, and exclusive ownership leases. The existing API hosts the coordinator logic; all lease decisions use database time and reassignment advances a fencing epoch. OPC UA clients register with the coordinator, report health, acquire one eligible endpoint, fetch its server/tag configuration, and renew ownership periodically. The dashboard shows registered collectors and endpoint leases; see the [assessment](docs/architecture/assessment.md) and [lease design](docs/architecture/coordinator-and-leases.md).
+
 A fixed UUID-v5 namespace maps each key to the same UUID across services and restarts. The idempotent registry also stores site, asset, unit, type, server, namespace URI, NodeId, description, tags, creation time, and active state.
 
 ```text
@@ -90,6 +94,8 @@ Ordering is retained per series. More consumer replicas than partitions do not a
 
 Embedded migrations are serialized with a PostgreSQL advisory lock and recorded in `schema_migrations`. Storage includes sites, assets, servers/clients, series definitions, partitioned measurements, global event receipts, service instances, and heartbeats.
 
+Application tables are separated by responsibility: `control_plane` contains registry, endpoint, tag, collector, lease, certificate, and configuration metadata; `telemetry` contains event receipts and measurements; `operations` contains service and compatibility health state. Only the migration ledger remains in `public`.
+
 Retention defaults to 30 days in `platform_settings`. Schedule `SELECT purge_expired_telemetry();` during maintenance. Large installations should create monthly partitions ahead of time and drop expired partitions instead of deleting rows.
 
 ## Local execution
@@ -111,6 +117,14 @@ processor and inserter:
 ```bash
 docker compose --profile full-demo --profile scale-out up --build
 ```
+
+Scale collectors independently; every replica registers under its container hostname. PostgreSQL leases ensure only one replica owns a given endpoint, while idle replicas remain available for failover:
+
+```bash
+docker compose --profile full-demo up --build -d --scale client-wind=3
+```
+
+Collectors report health and renew their 30-second leases every 10 seconds. On graceful shutdown they release ownership immediately; after a crash another healthy replica acquires the endpoint after lease expiry.
 
 - Dashboard: <http://localhost:3000>
 - API/OpenAPI: <http://localhost:8080/openapi/v1.json>
@@ -167,6 +181,20 @@ Unit tests cover identity, validation, and correlated simulation. Testcontainers
 
 See [failure scenarios](docs/failure-scenarios/compose.md) for disconnect/reconnect, consumer replacement, database outage/recovery, replay/deduplication, invalid-message dead lettering, and deterministic simulation failure.
 
+## Dependency maintenance
+
+The current baseline uses .NET 11, React 19, OpenTelemetry 1.21, Testcontainers 4.17, Vite 7, and ESLint 10. Exact frontend versions are locked in `frontend/package-lock.json`; NuGet versions are pinned in each project file. Check for updates and advisories with:
+
+```bash
+dotnet package list --project IndustrialEnergyTelemetry.slnx --outdated --include-transitive
+dotnet package list --project IndustrialEnergyTelemetry.slnx --vulnerable --include-transitive
+cd frontend
+npm outdated
+npm audit
+```
+
+Prefer compatible updates with a clean build and test run. Treat OPC UA SDK, Material UI, SignalR, Vite, TypeScript, and test-runner major upgrades as explicit migrations rather than automatic lockfile churn. The current production npm dependency graph and NuGet graph have no known advisories; npm still reports a development-only `picomatch` advisory for build/lint tooling for which no patched published version is currently available.
+
 ## Security and limitations
 
 - No real secrets are committed; deployments supply database credentials.
@@ -174,7 +202,7 @@ See [failure scenarios](docs/failure-scenarios/compose.md) for disconnect/reconn
 - Enable Kafka/PostgreSQL authentication and transport encryption in production.
 - The demonstration API has no end-user authentication and must not be internet-exposed as-is.
 - Compose Kafka/PostgreSQL are single-node development infrastructure.
-- Client HA ownership leases and a SignalR scale-out backplane are documented future work.
+- PostgreSQL-backed ownership leases exist, but dynamic multi-endpoint collectors, telemetry fencing enforcement, and a SignalR scale-out backplane remain future work.
 - Consumer lag is used by KEDA but is not yet surfaced in the API/dashboard; some requested infrastructure detail and chart interactions remain outstanding.
 - The default telemetry partition is suitable for development; automate monthly partitions in production.
 

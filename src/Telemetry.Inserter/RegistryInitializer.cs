@@ -24,9 +24,13 @@ internal static class RegistryInitializer
                 ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name,asset_type=excluded.asset_type;
                 """, cancellationToken, assetId, siteId, definition.AssetKey, definition.AssetName, definition.AssetType).ConfigureAwait(false);
             await ExecuteAsync(connection, transaction, """
-                INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name) VALUES($1,$2,$3,$4,$5)
-                ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,namespace_uri=excluded.namespace_uri;
-                """, cancellationToken, serverId, definition.ServerKey, definition.Endpoint, definition.NamespaceUri, definition.SiteName).ConfigureAwait(false);
+                INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name,site_id,application_uri,security_policy,security_mode)
+                VALUES($1,$2,$3,$4,$5,$6,$7,'http://opcfoundation.org/UA/SecurityPolicy#None','None')
+                ON CONFLICT(id) DO UPDATE SET endpoint=excluded.endpoint,namespace_uri=excluded.namespace_uri,
+                  site_id=excluded.site_id,application_uri=excluded.application_uri,
+                  security_policy=excluded.security_policy,security_mode=excluded.security_mode;
+                """, cancellationToken, serverId, definition.ServerKey, definition.Endpoint, definition.NamespaceUri,
+                definition.SiteName, siteId, $"urn:ietp:server:{definition.ServerKey}").ConfigureAwait(false);
             await ExecuteAsync(connection, transaction, """
                 INSERT INTO opcua_clients(id,client_key,server_id) VALUES($1,$2,$3)
                 ON CONFLICT(id) DO UPDATE SET server_id=excluded.server_id;

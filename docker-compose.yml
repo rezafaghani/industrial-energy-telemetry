@@ -9,11 +9,6 @@ x-server: &server
   environment: &server-env
     DOTNET_ENVIRONMENT: Development
     OpcUa__AllowUnsecuredDevelopmentEndpoint: "true"
-  healthcheck:
-    test: ["CMD-SHELL", "test -f /proc/1/status"]
-    interval: 10s
-    timeout: 3s
-    retries: 5
 x-client: &client
   build:
     <<: *dotnet-build
@@ -24,6 +19,10 @@ x-client: &client
   environment: &client-env
     OpcUaClient__KafkaBootstrapServers: kafka:9092
     OpcUaClient__UseSecurity: "false"
+    OpcUaClient__CoordinatorUrl: http://api:8080
+    OpcUaClient__CollectorCapacity: "1"
+    OpcUaClient__LeaseSeconds: "30"
+    OpcUaClient__CoordinatorIntervalSeconds: "10"
 x-processor: &processor
   build:
     <<: *dotnet-build
@@ -40,7 +39,7 @@ x-inserter: &inserter
   restart: unless-stopped
   depends_on:
     kafka-init: { condition: service_completed_successfully }
-    postgres: { condition: service_healthy }
+    postgres-init: { condition: service_completed_successfully }
   environment:
     Inserter__BootstrapServers: kafka:9092
     Inserter__ConnectionString: Host=postgres;Database=ietp;Username=ietp;Password=ietp-dev-only
@@ -53,12 +52,13 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./infrastructure/postgres/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro,Z
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ietp -d ietp"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
     ports: ["5432:5432"]
+
+  postgres-init:
+    image: postgres:18-alpine
+    depends_on: { postgres: { condition: service_started } }
+    environment: { PGPASSWORD: ietp-dev-only }
+    command: ["sh", "-c", "until pg_isready -h postgres -U ietp -d ietp; do sleep 1; done"]
 
   kafka:
     image: apache/kafka:4.1.0
@@ -77,18 +77,13 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     volumes: ["kafka-data:/var/lib/kafka/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
     ports: ["9092:9092"]
 
   kafka-init:
     image: apache/kafka:4.1.0
-    depends_on: { kafka: { condition: service_healthy } }
+    depends_on: { kafka: { condition: service_started } }
     command: >-
-      sh -c '/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.raw --partitions 12 --replication-factor 1 &&
+      sh -c 'until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.raw --partitions 12 --replication-factor 1; do sleep 2; done &&
       /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.processed --partitions 12 --replication-factor 1 &&
       /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.dead-letter --partitions 6 --replication-factor 1 &&
       /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.status --partitions 6 --replication-factor 1'
@@ -120,44 +115,48 @@ services:
 
   client-wind:
     <<: *client
-    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-wind: { condition: service_healthy } }
-    environment: { <<: *client-env, OpcUaClient__ClientId: windfarm01-client, OpcUaClient__ServerId: windfarm01, OpcUaClient__Endpoint: "opc.tcp://opcua-wind:4841/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:windfarm01", OpcUaClient__SiteId: windfarm01, OpcUaClient__AssetId: turbine01, OpcUaClient__Measurements__0: wind_speed, OpcUaClient__Measurements__1: rotor_speed, OpcUaClient__Measurements__2: active_power, OpcUaClient__Measurements__3: generator_temperature, OpcUaClient__Measurements__4: operational_status, OpcUaClient__Measurements__5: cumulative_energy }
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-wind: { condition: service_started } }
+    environment: { <<: *client-env, OpcUaClient__SiteId: windfarm01 }
   client-solar:
     <<: *client
     profiles: [full-demo]
-    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-solar: { condition: service_healthy } }
-    environment: { <<: *client-env, OpcUaClient__ClientId: solarfarm01-client, OpcUaClient__ServerId: solarfarm01, OpcUaClient__Endpoint: "opc.tcp://opcua-solar:4842/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:solarfarm01", OpcUaClient__SiteId: solarfarm01, OpcUaClient__AssetId: inverter01, OpcUaClient__Measurements__0: solar_irradiance, OpcUaClient__Measurements__1: panel_temperature, OpcUaClient__Measurements__2: dc_voltage, OpcUaClient__Measurements__3: dc_current, OpcUaClient__Measurements__4: active_power, OpcUaClient__Measurements__5: inverter_status }
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-solar: { condition: service_started } }
+    environment: { <<: *client-env, OpcUaClient__SiteId: solarfarm01 }
   client-grid:
     <<: *client
     profiles: [full-demo]
-    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-grid: { condition: service_healthy } }
-    environment: { <<: *client-env, OpcUaClient__ClientId: grid01-client, OpcUaClient__ServerId: grid01, OpcUaClient__Endpoint: "opc.tcp://opcua-grid:4843/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:grid01", OpcUaClient__SiteId: grid01, OpcUaClient__AssetId: feeder01, OpcUaClient__Measurements__0: grid_frequency, OpcUaClient__Measurements__1: line_voltage, OpcUaClient__Measurements__2: current, OpcUaClient__Measurements__3: active_power, OpcUaClient__Measurements__4: reactive_power, OpcUaClient__Measurements__5: power_factor, OpcUaClient__Measurements__6: connection_status }
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-grid: { condition: service_started } }
+    environment: { <<: *client-env, OpcUaClient__SiteId: grid01 }
   client-battery:
     <<: *client
     profiles: [full-demo]
-    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-battery: { condition: service_healthy } }
-    environment: { <<: *client-env, OpcUaClient__ClientId: battery01-client, OpcUaClient__ServerId: battery01, OpcUaClient__Endpoint: "opc.tcp://opcua-battery:4844/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:battery01", OpcUaClient__SiteId: battery01, OpcUaClient__AssetId: bess01, OpcUaClient__Measurements__0: state_of_charge, OpcUaClient__Measurements__1: charge_discharge_power, OpcUaClient__Measurements__2: battery_voltage, OpcUaClient__Measurements__3: battery_current, OpcUaClient__Measurements__4: cell_temperature, OpcUaClient__Measurements__5: operating_mode }
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-battery: { condition: service_started } }
+    environment: { <<: *client-env, OpcUaClient__SiteId: battery01 }
   client-plant:
     <<: *client
     profiles: [full-demo]
-    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-plant: { condition: service_healthy } }
-    environment: { <<: *client-env, OpcUaClient__ClientId: plant01-client, OpcUaClient__ServerId: plant01, OpcUaClient__Endpoint: "opc.tcp://opcua-plant:4845/ietp", OpcUaClient__NamespaceUri: "urn:ietp:dk:demo:plant01", OpcUaClient__SiteId: plant01, OpcUaClient__AssetId: motor01, OpcUaClient__Measurements__0: motor_speed, OpcUaClient__Measurements__1: machine_vibration, OpcUaClient__Measurements__2: motor_temperature, OpcUaClient__Measurements__3: energy_consumption, OpcUaClient__Measurements__4: equipment_load, OpcUaClient__Measurements__5: operational_state }
+    depends_on: { kafka-init: { condition: service_completed_successfully }, opcua-plant: { condition: service_started } }
+    environment: { <<: *client-env, OpcUaClient__SiteId: plant01 }
 
   processor-1: { <<: *processor }
   processor-2: { <<: *processor, profiles: [scale-out] }
   inserter-1: { <<: *inserter }
   inserter-2: { <<: *inserter, profiles: [scale-out] }
+  postgres-schema-init:
+    image: postgres:18-alpine
+    depends_on: { inserter-1: { condition: service_started } }
+    environment: { PGPASSWORD: ietp-dev-only }
+    command: ["sh", "-c", "until psql -h postgres -U ietp -d ietp -tAc \"SELECT to_regclass('control_plane.collectors')\" | grep -q collectors; do sleep 1; done"]
   api:
     build: { context: ., dockerfile: infrastructure/docker/api.Dockerfile }
     restart: unless-stopped
-    depends_on: { postgres: { condition: service_healthy } }
+    depends_on: { postgres-schema-init: { condition: service_completed_successfully } }
     environment: { ConnectionStrings__Telemetry: "Host=postgres;Database=ietp;Username=ietp;Password=ietp-dev-only", ASPNETCORE_URLS: "http://+:8080" }
-    healthcheck: { test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/live >/dev/null"], interval: 10s, timeout: 3s, retries: 10 }
     ports: ["8080:8080"]
   frontend:
     build: { context: ., dockerfile: infrastructure/docker/frontend.Dockerfile }
     restart: unless-stopped
-    depends_on: { api: { condition: service_healthy } }
+    depends_on: { api: { condition: service_started } }
     ports: ["3000:80"]
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.138.0

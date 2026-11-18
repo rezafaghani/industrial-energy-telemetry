@@ -27,6 +27,10 @@ public sealed partial class OpcUaClientWorker : BackgroundService
     private long _publishedEvents;
     private long _errors;
     private string? _lastError;
+    public bool IsConnected => _connected;
+    public long PublishedEvents => Interlocked.Read(ref _publishedEvents);
+    public long Errors => Interlocked.Read(ref _errors);
+    public string? LastError => _lastError;
 
     public OpcUaClientWorker(IOptions<ClientOptions> options, IHostEnvironment environment, ILogger<OpcUaClientWorker> logger)
     {
@@ -42,6 +46,12 @@ public sealed partial class OpcUaClientWorker : BackgroundService
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.CoordinatorUrl)) return;
+        await RunAsync(stoppingToken).ConfigureAwait(false);
+    }
+
+    public async Task RunAsync(CancellationToken stoppingToken)
     {
         var configuration = await CreateConfigurationAsync(stoppingToken).ConfigureAwait(false);
         var publisher = PublishAsync(stoppingToken);

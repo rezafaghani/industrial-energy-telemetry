@@ -21,7 +21,11 @@ public sealed class InserterWorker(IOptions<InserterOptions> options) : Backgrou
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await using var dataSource = NpgsqlDataSource.Create(_options.ConnectionString);
+        var connection = new NpgsqlConnectionStringBuilder(_options.ConnectionString)
+        {
+            SearchPath = "control_plane,telemetry,operations,public"
+        };
+        await using var dataSource = NpgsqlDataSource.Create(connection.ConnectionString);
         await DatabaseMigrator.MigrateAsync(dataSource, stoppingToken).ConfigureAwait(false);
         await RegistryInitializer.EnsureAsync(dataSource, stoppingToken).ConfigureAwait(false);
         using var producer = new ProducerBuilder<string, string>(new ProducerConfig

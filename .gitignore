@@ -4,6 +4,7 @@ obj/
 .idea/
 node_modules/
 dist/
+*.tsbuildinfo
 .env
 *.user
 TestResults/

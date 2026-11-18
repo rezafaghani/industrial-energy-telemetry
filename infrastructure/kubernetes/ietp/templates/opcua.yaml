@@ -53,6 +53,11 @@ spec:
             - { name: OpcUaClient__SiteId, value: {{ $site.siteId | quote }} }
             - { name: OpcUaClient__AssetId, value: {{ $site.assetId | quote }} }
             - { name: OpcUaClient__KafkaBootstrapServers, valueFrom: { configMapKeyRef: { name: ietp-config, key: kafka-bootstrap-servers } } }
+            - { name: OpcUaClient__CoordinatorUrl, value: "http://telemetry-api:8080" }
+            - { name: OpcUaClient__CollectorId, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: OpcUaClient__CollectorCapacity, value: "1" }
+            - { name: OpcUaClient__LeaseSeconds, value: "30" }
+            - { name: OpcUaClient__CoordinatorIntervalSeconds, value: "10" }
             - { name: OpcUaClient__UseSecurity, value: "true" }
             {{- range $measurementIndex, $measurement := splitList "," $site.measurements }}
             - { name: "OpcUaClient__Measurements__{{ $measurementIndex }}", value: {{ $measurement | quote }} }

@@ -2,6 +2,11 @@ namespace Ietp.OpcUa.Client;
 
 public sealed class ClientOptions
 {
+    public string? CoordinatorUrl { get; init; }
+    public string? CollectorId { get; init; }
+    public int CollectorCapacity { get; init; } = 1;
+    public int LeaseSeconds { get; init; } = 30;
+    public int CoordinatorIntervalSeconds { get; init; } = 10;
     public string ClientId { get; init; } = "windfarm01-client";
     public string ServerId { get; init; } = "windfarm01";
     public string Endpoint { get; init; } = "opc.tcp://opcua-wind:4841/ietp";
