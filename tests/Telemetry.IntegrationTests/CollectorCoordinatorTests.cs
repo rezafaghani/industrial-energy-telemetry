@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Ietp.Telemetry.IntegrationTests;
 
+[Trait("Category", "Integration")]
 public sealed class CollectorCoordinatorTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine").Build();
@@ -24,15 +25,46 @@ public sealed class CollectorCoordinatorTests : IAsyncLifetime
         await DatabaseMigrator.MigrateAsync(dataSource, CancellationToken.None);
         var endpointId = Guid.NewGuid();
         var siteId = Guid.NewGuid();
-        await using (var seed = dataSource.CreateCommand("""
-            INSERT INTO sites(id,site_key,display_name,country_code,time_zone) VALUES($1,'site-1','Site 1','DK','UTC');
-            INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name,site_id)
-              VALUES($2,'endpoint-1','opc.tcp://endpoint-1:4840','urn:test','Endpoint 1',$1);
+        var assetId = Guid.NewGuid();
+        var seriesId = Guid.NewGuid();
+        await using (var seedSite = dataSource.CreateCommand("""
+            INSERT INTO sites(id,site_key,display_name,country_code,time_zone) VALUES($1,'site-1','Site 1','DK','UTC')
             """))
         {
-            seed.Parameters.AddWithValue(siteId);
-            seed.Parameters.AddWithValue(endpointId);
-            await seed.ExecuteNonQueryAsync();
+            seedSite.Parameters.AddWithValue(siteId);
+            await seedSite.ExecuteNonQueryAsync();
+        }
+        await using (var seedServer = dataSource.CreateCommand("""
+            INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name,site_id)
+              VALUES($1,'endpoint-1','opc.tcp://endpoint-1:4840','urn:test','Endpoint 1',$2)
+            """))
+        {
+            seedServer.Parameters.AddWithValue(endpointId);
+            seedServer.Parameters.AddWithValue(siteId);
+            await seedServer.ExecuteNonQueryAsync();
+        }
+        await using (var seedAsset = dataSource.CreateCommand("""
+            INSERT INTO assets(id,site_id,asset_key,display_name,asset_type)
+              VALUES($1,$2,'asset-1','Asset 1','Test asset')
+            """))
+        {
+            seedAsset.Parameters.AddWithValue(assetId);
+            seedAsset.Parameters.AddWithValue(siteId);
+            await seedAsset.ExecuteNonQueryAsync();
+        }
+        await using (var seedSeries = dataSource.CreateCommand("""
+            INSERT INTO series_definitions(
+              id,series_key,display_name,site_id,asset_id,measurement_id,measurement_type,unit,
+              opcua_server_id,namespace_uri,node_id,data_type,description,tags,active)
+            VALUES($1,'dk.test.site-1.asset-1.power','Power',$2,$3,'power','Active power','kW',
+              $4,'urn:test','ns=2;s=power','Double','Test measurement','{}',true)
+            """))
+        {
+            seedSeries.Parameters.AddWithValue(seriesId);
+            seedSeries.Parameters.AddWithValue(siteId);
+            seedSeries.Parameters.AddWithValue(assetId);
+            seedSeries.Parameters.AddWithValue(endpointId);
+            await seedSeries.ExecuteNonQueryAsync();
         }
 
         var coordinator = new CollectorCoordinator(dataSource);
@@ -65,12 +97,15 @@ public sealed class CollectorCoordinatorTests : IAsyncLifetime
         };
         await using var dataSource = NpgsqlDataSource.Create(connection.ConnectionString);
         await DatabaseMigrator.MigrateAsync(dataSource, CancellationToken.None);
-        await using (var seed = dataSource.CreateCommand("""
-            INSERT INTO sites(id,site_key,display_name,country_code,time_zone) VALUES(gen_random_uuid(),'empty','Empty','DK','UTC');
-            INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name,site_id)
-              SELECT gen_random_uuid(),'empty','opc.tcp://empty:4840','urn:empty','Empty',id FROM sites WHERE site_key='empty';
+        await using (var seedSite = dataSource.CreateCommand("""
+            INSERT INTO sites(id,site_key,display_name,country_code,time_zone) VALUES(gen_random_uuid(),'empty','Empty','DK','UTC')
             """))
-            await seed.ExecuteNonQueryAsync();
+            await seedSite.ExecuteNonQueryAsync();
+        await using (var seedServer = dataSource.CreateCommand("""
+            INSERT INTO opcua_servers(id,server_key,endpoint,namespace_uri,display_name,site_id)
+              SELECT gen_random_uuid(),'empty','opc.tcp://empty:4840','urn:empty','Empty',id FROM sites WHERE site_key='empty'
+            """))
+            await seedServer.ExecuteNonQueryAsync();
 
         var coordinator = new CollectorCoordinator(dataSource);
         await coordinator.RegisterAsync(new("collector", null, 1, null), CancellationToken.None);

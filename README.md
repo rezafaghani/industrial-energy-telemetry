@@ -163,7 +163,7 @@ The Helm chart under `infrastructure/kubernetes/ietp` generates all five server/
 ```bash
 dotnet restore IndustrialEnergyTelemetry.slnx
 dotnet build IndustrialEnergyTelemetry.slnx --no-restore
-dotnet test IndustrialEnergyTelemetry.slnx --no-build --filter "Category!=EndToEnd"
+dotnet test IndustrialEnergyTelemetry.slnx --no-build
 
 cd frontend
 npm ci
@@ -177,8 +177,9 @@ npm test
 The Testcontainers integration tests require a working Docker-compatible daemon. After Compose is healthy, run:
 
 ```bash
+dotnet test tests/Telemetry.IntegrationTests --filter "Category=Integration"
 docker compose --profile full-demo up --build -d
-IETP_BASE_URL=http://localhost:3000 dotnet test tests/Telemetry.EndToEndTests
+IETP_BASE_URL=http://localhost:3000 dotnet test tests/Telemetry.EndToEndTests --filter "Category=EndToEnd"
 ```
 
 Unit tests cover identity, validation, and correlated simulation. Testcontainers integration tests use real Kafka and PostgreSQL. The E2E test requires all five sources to become persisted/queryable and verifies API/frontend visibility. See [implementation status](IMPLEMENTATION_STATUS.md) for what has actually been verified in this workspace.
