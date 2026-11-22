@@ -2,20 +2,20 @@
 
 ## Project Structure & Module Organization
 
-The .NET 11 solution is rooted at `IndustrialEnergyTelemetry.slnx`. Runtime services live under `src/`: OPC UA server/client simulators, Kafka processor and inserter workers, the ASP.NET Core API, and shared `Telemetry.Contracts`, `Telemetry.Domain`, and `BuildingBlocks` projects. The React 19/Vite dashboard is in `frontend/src`. Tests are split into `tests/Telemetry.UnitTests`, `Telemetry.IntegrationTests`, and `Telemetry.EndToEndTests`. Deployment assets live in `infrastructure/` (Docker, PostgreSQL, observability, and Helm); architecture and operations notes live in `docs/`.
+The .NET 11 solution is rooted at `IndustrialEnergyTelemetry.slnx`. Runtime services live under `src/`: OPC UA server/client simulators, Kafka processor and inserter workers, the ASP.NET Core API, and shared `Telemetry.Contracts`, `Telemetry.Domain`, and `BuildingBlocks` projects. The Angular 22/Angular Material dashboard is in `frontend/src/app`. Tests are split into `tests/Telemetry.UnitTests`, `Telemetry.IntegrationTests`, and `Telemetry.EndToEndTests`. Deployment assets live in `infrastructure/` (Docker, PostgreSQL, observability, and Helm); architecture and operations notes live in `docs/`.
 
 ## Build, Test, and Development Commands
 
 - `dotnet restore IndustrialEnergyTelemetry.slnx` restores .NET packages.
 - `dotnet build IndustrialEnergyTelemetry.slnx --no-restore` compiles all projects; warnings fail the build.
 - `dotnet test IndustrialEnergyTelemetry.slnx --no-build --filter "Category!=EndToEnd"` runs unit and integration tests. Integration tests require a Docker-compatible daemon.
-- `cd frontend && npm ci && npm run typecheck && npm run lint && npm run build` installs locked dependencies and validates the dashboard.
-- `cd frontend && npm run dev` starts the Vite development server.
+- `cd frontend && npm ci && npm run typecheck && npm run lint && npm test && npm run build` installs locked dependencies and validates the dashboard.
+- `cd frontend && npm start` starts the Angular development server.
 - `docker compose up --build` runs the default local stack; add `--profile full-demo` for all simulated sites.
 
 ## Coding Style & Naming Conventions
 
-Follow existing C# conventions: four-space indentation, file-scoped namespaces, nullable reference types, `PascalCase` for types/public members, and `camelCase` for locals and parameters. Keep shared domain rules in `Telemetry.Domain` and transport shapes in `Telemetry.Contracts`. TypeScript/TSX uses two-space indentation, semicolons, `PascalCase` components, and `camelCase` functions. Run ESLint before submitting frontend changes. Do not commit generated `bin/`, `obj/`, `dist/`, or `node_modules/` content.
+Follow existing C# conventions: four-space indentation, file-scoped namespaces, nullable reference types, `PascalCase` for types/public members, and `camelCase` for locals and parameters. Keep shared domain rules in `Telemetry.Domain` and transport shapes in `Telemetry.Contracts`. Angular TypeScript uses two-space indentation, semicolons, standalone components, `PascalCase` component classes, and `camelCase` functions. Use Angular Material for dashboard controls and display widgets; use Angular Router for feature navigation. Run Angular ESLint before submitting frontend changes. Do not commit generated `bin/`, `obj/`, `dist/`, or `node_modules/` content.
 
 ## Testing Guidelines
 

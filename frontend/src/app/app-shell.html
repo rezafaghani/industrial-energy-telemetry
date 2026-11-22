@@ -1,0 +1,24 @@
+<mat-toolbar class="topbar">
+  <div class="brand">
+    <span class="eyebrow">IETP Control Room</span>
+    <span class="brand-title">Industrial Energy Telemetry</span>
+  </div>
+  <span class="toolbar-spacer"></span>
+  <mat-chip-set aria-label="Live telemetry connection status">
+    <mat-chip [class]="live.status()">{{ live.status() }}</mat-chip>
+  </mat-chip-set>
+  <button mat-button type="button" aria-label="Toggle color theme" (click)="theme.toggle()">
+    {{ theme.isDark() ? 'Dark' : 'Light' }} theme
+  </button>
+</mat-toolbar>
+
+<nav class="main-navigation" aria-label="Dashboard sections">
+  <a mat-button routerLink="/overview" routerLinkActive="active-link">Overview</a>
+  <a mat-button routerLink="/opc-ua" routerLinkActive="active-link">OPC UA</a>
+  <a mat-button routerLink="/services" routerLinkActive="active-link">Services</a>
+  <a mat-button routerLink="/series-explorer" routerLinkActive="active-link">Series Explorer</a>
+</nav>
+
+<main class="page-content">
+  <router-outlet />
+</main>

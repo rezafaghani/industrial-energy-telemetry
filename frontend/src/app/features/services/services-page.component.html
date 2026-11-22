@@ -1,0 +1,14 @@
+<section class="page-section">
+  <header class="page-heading">
+    <p class="eyebrow">Runtime health</p>
+    <h1>Services</h1>
+  </header>
+  <app-panel title="Service instances">
+    @if (state(); as servicesState) {
+      <app-query-state [state]="servicesState" />
+      @if (servicesState.kind === 'success') {
+        <app-status-cards [rows]="servicesState.data" emptyMessage="No service heartbeats have been received." />
+      }
+    }
+  </app-panel>
+</section>

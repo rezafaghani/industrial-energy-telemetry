@@ -1,0 +1,15 @@
+<section class="page-section">
+  <header class="page-heading">
+    <p class="eyebrow">Operational summary</p>
+    <h1>Overview</h1>
+  </header>
+  <app-query-state [state]="overviewState()" />
+  <app-metric-grid [metrics]="metrics()" />
+
+  <app-panel title="Latest measurements">
+    <app-query-state [state]="latestState()" />
+    @if (latestState().kind === 'success') {
+      <app-data-table [rows]="latestRows()" emptyMessage="No telemetry has been persisted yet." />
+    }
+  </app-panel>
+</section>

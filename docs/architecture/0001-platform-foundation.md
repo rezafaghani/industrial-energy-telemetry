@@ -22,7 +22,7 @@ src/
   Telemetry.Processor/   raw consumer and processed producer (implemented)
   Telemetry.Inserter/    processed consumer and PostgreSQL writer (implemented)
   Telemetry.Api/         queries, health, SignalR (implemented)
-frontend/                React/Vite UI (implemented)
+frontend/                Angular Material SPA (implemented)
 tests/                   unit, integration, and end-to-end suites
 infrastructure/          Compose, Kafka, PostgreSQL, observability, Kubernetes
 docs/                    architecture and operations
