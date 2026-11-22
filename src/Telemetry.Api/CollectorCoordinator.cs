@@ -159,13 +159,23 @@ public sealed class CollectorCoordinator(NpgsqlDataSource dataSource)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand("""
-            UPDATE collectors SET draining=true,last_heartbeat_at=now() WHERE id=$1;
-            UPDATE collector_assignments SET lease_expires_at=greatest(now(),lease_acquired_at+interval '1 microsecond')
-            WHERE collector_id=$1;
-            """, connection, transaction);
-        command.Parameters.AddWithValue(collectorId);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await using (var draining = new NpgsqlCommand(
+            "UPDATE collectors SET draining=true,last_heartbeat_at=now() WHERE id=$1",
+            connection,
+            transaction))
+        {
+            draining.Parameters.AddWithValue(collectorId);
+            await draining.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await using (var expire = new NpgsqlCommand("""
+            UPDATE collector_assignments
+            SET lease_expires_at=greatest(now(),lease_acquired_at+interval '1 microsecond')
+            WHERE collector_id=$1
+            """, connection, transaction))
+        {
+            expire.Parameters.AddWithValue(collectorId);
+            await expire.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
