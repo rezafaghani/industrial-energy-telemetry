@@ -1,0 +1,41 @@
+<section class="page-section">
+  <header class="page-heading">
+    <p class="eyebrow">Acquisition and control plane</p>
+    <h1>OPC UA</h1>
+  </header>
+
+  <app-server-registration />
+
+  <app-panel title="OPC UA servers">
+    @if (servers(); as serverState) {
+      <app-query-state [state]="serverState" />
+      @if (serverState.kind === 'success') {
+        <app-status-cards [rows]="serverState.data" emptyMessage="No OPC UA servers are registered." />
+      }
+    }
+  </app-panel>
+  <app-panel title="Assigned clients">
+    @if (clients(); as clientState) {
+      <app-query-state [state]="clientState" />
+      @if (clientState.kind === 'success') {
+        <app-status-cards [rows]="clientState.data" emptyMessage="No OPC UA clients are registered." />
+      }
+    }
+  </app-panel>
+  <app-panel title="Collectors">
+    @if (collectors(); as collectorState) {
+      <app-query-state [state]="collectorState" />
+      @if (collectorState.kind === 'success') {
+        <app-status-cards [rows]="collectorState.data" emptyMessage="No dynamic collectors are registered." />
+      }
+    }
+  </app-panel>
+  <app-panel title="Endpoint ownership leases">
+    @if (assignments(); as assignmentState) {
+      <app-query-state [state]="assignmentState" />
+      @if (assignmentState.kind === 'success') {
+        <app-data-table [rows]="assignmentState.data" emptyMessage="No endpoint leases have been acquired." />
+      }
+    }
+  </app-panel>
+</section>

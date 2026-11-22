@@ -1,0 +1,46 @@
+import { Component, Input } from '@angular/core';
+import { MatCardModule } from '@angular/material/card';
+import { MatTableModule } from '@angular/material/table';
+import type { Row } from '../../../core/models/telemetry';
+import { formatCell } from '../../../core/utils/presentation';
+
+@Component({
+  selector: 'app-data-table',
+  standalone: true,
+  imports: [MatCardModule, MatTableModule],
+  template: `
+    @if (rows.length === 0) {
+      <mat-card class="empty-state">{{ emptyMessage }}</mat-card>
+    } @else {
+      <div class="table-wrap">
+        <table mat-table [dataSource]="rows">
+          @for (column of columns; track column) {
+            <ng-container [matColumnDef]="column">
+              <th mat-header-cell *matHeaderCellDef>{{ column.replaceAll('_', ' ') }}</th>
+              <td mat-cell *matCellDef="let row">{{ formatCell(column, row[column]) }}</td>
+            </ng-container>
+          }
+          <tr mat-header-row *matHeaderRowDef="columns"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        </table>
+      </div>
+    }
+  `,
+})
+export class DataTableComponent {
+  @Input() emptyMessage = 'No data is available.';
+  columns: string[] = [];
+  private currentRows: Row[] = [];
+
+  @Input()
+  set rows(value: Row[]) {
+    this.currentRows = value ?? [];
+    this.columns = this.currentRows.length > 0 ? Object.keys(this.currentRows[0]) : [];
+  }
+
+  get rows(): Row[] {
+    return this.currentRows;
+  }
+
+  readonly formatCell = formatCell;
+}

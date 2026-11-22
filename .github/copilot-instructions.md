@@ -57,11 +57,11 @@ This repository is a distributed industrial telemetry platform built around a re
 - `src/Telemetry.Api/` serves queries and live updates over HTTP + SignalR.
 - `src/Telemetry.Domain/` contains canonical series identity rules, validation logic, and simulation behavior.
 - `src/Telemetry.Contracts/` defines typed event models shared across services.
-- `frontend/` is a separate React 19 + Vite dashboard that consumes the API and SignalR stream.
+- `frontend/` is a separate Angular 22 + Angular Material single-page dashboard that consumes the API and SignalR stream.
 
 The big-picture data path is:
 
-OPC UA sources -> Kafka `telemetry.raw` -> Processor -> Kafka `telemetry.processed` -> Inserter -> PostgreSQL -> API + SignalR -> React dashboard.
+OPC UA sources -> Kafka `telemetry.raw` -> Processor -> Kafka `telemetry.processed` -> Inserter -> PostgreSQL -> API + SignalR -> Angular dashboard.
 
 This codebase intentionally separates responsibilities by service and scaling boundary; changes that cross raw/processed/data-layer boundaries should be read with the surrounding services in mind.
 
@@ -112,7 +112,7 @@ The project uses xUnit, with most behaviors expressed as `[Fact]` and `[Theory]`
 
 ### Frontend conventions
 
-The dashboard is a Vite app with TypeScript, Material UI, TanStack Query, Recharts, and SignalR. Prefer working within this established stack and keep API contracts aligned with the backend rather than introducing parallel state patterns.
+The dashboard is an Angular SPA with TypeScript, Angular Material, Angular Router, HttpClient/RxJS, ng2-charts/Chart.js, and SignalR. Split features into standalone page and reusable components, use Material controls/widgets, and keep API contracts aligned with the backend.
 
 ### Operational assumptions
 

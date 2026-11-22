@@ -1,6 +1,6 @@
 # Industrial Energy Telemetry Platform
 
-IETP is an open-source .NET 11 and React platform that moves real OPC UA subscription data through Kafka, validates it in horizontally scalable consumer groups, persists it idempotently in PostgreSQL, and exposes live and historical operations data through ASP.NET Core, SignalR, and an industrial monitoring dashboard.
+IETP is an open-source .NET 11 platform that moves real OPC UA subscription data through Kafka, validates it in horizontally scalable consumer groups, persists it idempotently in PostgreSQL, and exposes live and historical operations data through ASP.NET Core, SignalR, and an industrial monitoring dashboard.
 
 The project is a portfolio-grade reference for industrial software, power systems, and energy-data engineering. Running services use real OPC UA, Kafka, and PostgreSQL integrations; mocks are limited to isolated tests.
 
@@ -16,7 +16,7 @@ flowchart LR
   X --> I[Inserter group 1..12]
   I --> DB[(PostgreSQL)]
   DB --> A[ASP.NET Core API]
-  A -->|HTTP + SignalR| U[React dashboard]
+  A -->|HTTP + SignalR| U[Angular dashboard]
   C & P & I --> H[(telemetry.status)]
   H --> I
 ```
@@ -29,7 +29,7 @@ flowchart LR
 - Official OPC Foundation UA .NET libraries
 - Confluent.Kafka and Apache Kafka/KRaft
 - PostgreSQL 18 and Npgsql
-- React 19, TypeScript, Vite, Material UI, TanStack Query, Recharts, SignalR
+- Angular 22, TypeScript, Angular Material, Angular Router, SignalR, ng2-charts/Chart.js
 - OpenTelemetry Collector, Prometheus, Grafana, Jaeger
 - Docker Compose, Helm/Kubernetes, KEDA
 - xUnit and Testcontainers
@@ -140,7 +140,7 @@ Optional engineering observability:
 docker compose --profile observability up --build
 ```
 
-Grafana is on port 3001, Jaeger on 16686, and Prometheus on 9090. The React UI presents operator/domain state; Grafana and Jaeger present engineering metrics and traces.
+Grafana is on port 3001, Jaeger on 16686, and Prometheus on 9090. The Angular UI presents operator/domain state; Grafana and Jaeger present engineering metrics and traces.
 
 ## Dashboard
 
@@ -151,6 +151,8 @@ Grafana is on port 3001, Jaeger on 16686, and Prometheus on 9090. The React UI p
 - Numeric time-series charts and measurement history with source/server/receive/processing/ingestion timestamps, quality, and OPC UA status
 - Compatible-unit comparison for up to four series, plus tabular discrete-state history
 - Live SignalR refresh, visible loading/errors, and dark/light responsive layout
+
+The Angular Material dashboard uses direct SPA routes at `/overview`, `/opc-ua`, `/services`, and `/series-explorer`. Each feature is composed from focused page and shared components; Angular Material supplies navigation, forms, cards, status chips, feedback, and tables. Numeric history uses ng2-charts with Chart.js.
 
 ## Kubernetes
 
@@ -165,9 +167,11 @@ dotnet test IndustrialEnergyTelemetry.slnx --no-build --filter "Category!=EndToE
 
 cd frontend
 npm ci
+npm start
 npm run typecheck
 npm run build
 npm run lint
+npm test
 ```
 
 The Testcontainers integration tests require a working Docker-compatible daemon. After Compose is healthy, run:
@@ -183,7 +187,7 @@ See [failure scenarios](docs/failure-scenarios/compose.md) for disconnect/reconn
 
 ## Dependency maintenance
 
-The current baseline uses .NET 11, React 19, OpenTelemetry 1.21, Testcontainers 4.17, Vite 7, and ESLint 10. Exact frontend versions are locked in `frontend/package-lock.json`; NuGet versions are pinned in each project file. Check for updates and advisories with:
+The current baseline uses .NET 11, Angular 22, OpenTelemetry 1.21, and Testcontainers 4.17. Exact frontend versions are locked in `frontend/package-lock.json`; NuGet versions are pinned in each project file. Check for updates and advisories with:
 
 ```bash
 dotnet package list --project IndustrialEnergyTelemetry.slnx --outdated --include-transitive
@@ -193,7 +197,7 @@ npm outdated
 npm audit
 ```
 
-Prefer compatible updates with a clean build and test run. Treat OPC UA SDK, Material UI, SignalR, Vite, TypeScript, and test-runner major upgrades as explicit migrations rather than automatic lockfile churn. The current production npm dependency graph and NuGet graph have no known advisories; npm still reports a development-only `picomatch` advisory for build/lint tooling for which no patched published version is currently available.
+Prefer compatible updates with a clean build and test run. Treat OPC UA SDK, Angular, Angular Material, SignalR, charting, TypeScript, and test-runner major upgrades as explicit migrations rather than automatic lockfile churn.
 
 ## Security and limitations
 

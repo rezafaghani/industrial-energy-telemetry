@@ -1,0 +1,74 @@
+<section class="page-section">
+  <header class="page-heading">
+    <p class="eyebrow">Registry and telemetry history</p>
+    <h1>Series Explorer</h1>
+  </header>
+
+  <div class="explorer-controls">
+    <mat-form-field appearance="outline">
+      <mat-label>Search series, site, or asset</mat-label>
+      <input #searchInput matInput [value]="search()" (input)="onSearchChange(searchInput.value)" />
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Series (up to 4, same unit)</mat-label>
+      <mat-select multiple [value]="selectedIds()" (selectionChange)="onSelectionChange($event.value)">
+        @for (item of filteredSeries(); track item.id) {
+          <mat-option
+            [value]="item.id"
+            [disabled]="(selectedIds().length >= 4 && !selectedIds().includes(item.id))
+              || (selectedIds().length > 0 && !selectedIds().includes(item.id) && item.unit !== selectedUnit())">
+            {{ item.display_name }} · {{ item.site_key }}/{{ item.asset_key }} · {{ item.unit || 'discrete' }}
+          </mat-option>
+        }
+      </mat-select>
+      <mat-hint>Compare up to four series that share a unit.</mat-hint>
+    </mat-form-field>
+    <mat-form-field appearance="outline" class="range-control">
+      <mat-label>Range</mat-label>
+      <mat-select [value]="hours()" (selectionChange)="hours.set($event.value)">
+        <mat-option [value]="1">1 hour</mat-option>
+        <mat-option [value]="6">6 hours</mat-option>
+        <mat-option [value]="24">24 hours</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <app-query-state [state]="seriesState()" />
+  @if (seriesState().kind === 'success' && allSeries().length === 0) {
+    <mat-card class="empty-state">No series are registered yet.</mat-card>
+  }
+  @if (seriesState().kind === 'success' && filteredSeries().length === 0 && allSeries().length > 0) {
+    <mat-card class="empty-state">No series match “{{ search() }}”.</mat-card>
+  }
+
+  @for (series of chosen(); track series.id; let index = $index) {
+    <app-series-metadata
+      [series]="series"
+      [measurements]="historyFor(index)" />
+  }
+
+  @if (chosen().length > 0) {
+    @if (numeric()) {
+      <app-panel [title]="'Time series · ' + (selectedUnit() || '')">
+        <app-query-state [state]="historyState()" />
+        @if (historyState().kind === 'success' && chartData().labels?.length) {
+          <app-series-chart [data]="chartData()" [unit]="selectedUnit() || ''" />
+        } @else if (historyState().kind === 'success') {
+          <mat-card class="empty-state">No numeric samples were found in this time range.</mat-card>
+        }
+      </app-panel>
+    } @else {
+      <app-panel title="Discrete measurements">
+        <app-query-state [state]="historyState()" />
+      </app-panel>
+    }
+    <app-panel title="Measurement history">
+      <app-query-state [state]="historyState()" />
+      @if (historyState().kind === 'success') {
+        <app-data-table [rows]="historyRows()" emptyMessage="No measurements were found in this time range." />
+      }
+    </app-panel>
+  } @else if (seriesState().kind === 'success') {
+    <mat-card class="empty-state">Select one or more series to view metadata and measurements.</mat-card>
+  }
+</section>

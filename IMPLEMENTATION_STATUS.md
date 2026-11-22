@@ -1,20 +1,20 @@
 # Implementation status
 
-**Last checked:** 2026-11-18
+**Last checked:** 2026-11-22
 **Overall:** Core services and dashboard are implemented in source. The complete live platform is not yet verified; do not treat deployment or end-to-end acceptance criteria as passed.
 
 ## Verified in this environment
 
 - .NET 11 solution builds with zero warnings and errors.
 - Unit tests pass: 17 passed, 0 failed.
-- Frontend dependency installation from the lockfile, TypeScript typecheck, production build, and ESLint pass.
+- Angular 22 frontend clean lockfile install, typecheck, lint, focused unit tests, and optimized production build pass.
 - `docker-compose config --quiet` accepts the Compose configuration.
 
 ## Implemented, but not verified as a running system
 
 - Five configuration-driven OPC UA server profiles and corresponding real OPC UA client workers with subscriptions, retry, bounded buffering, and Kafka producers.
 - Kafka raw/processed/dead-letter/status topics, processor and inserter consumer groups, explicit telemetry offset commits, and PostgreSQL receipt-based deduplication.
-- PostgreSQL migrations, stable series catalog, API queries, SignalR broadcaster, and React dashboard.
+- PostgreSQL migrations, stable series catalog, API queries, SignalR broadcaster, and Angular Material SPA with routed Overview, OPC UA, Services, and Series Explorer features.
 - Compose, Kubernetes Helm templates, and optional OpenTelemetry/Prometheus/Grafana/Jaeger configuration.
 - Additive control-plane schema, PostgreSQL-backed collector registration/health and fenced endpoint leases, coordinator API, and operator views.
 

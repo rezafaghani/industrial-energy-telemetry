@@ -27,7 +27,7 @@
 ## API and dashboard
 
 - [x] Metadata, health, latest/history, quality/statistics, OpenAPI, and SignalR endpoints implemented.
-- [x] React dashboard, series explorer, unit-aware numeric charting, and discrete history implemented.
+- [x] Angular Material SPA with routed Overview, OPC UA, Services, and Series Explorer views, unit-aware numeric charting, and discrete history implemented.
 - [ ] Full five-source data visibility, dashboard status, and SignalR behavior verified end-to-end.
 - [ ] Consumer lag and all requested infrastructure/series filters and chart interactions implemented.
 
