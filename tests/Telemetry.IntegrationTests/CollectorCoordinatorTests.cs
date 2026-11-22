@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Ietp.Telemetry.IntegrationTests;
 
+[Trait("Category", "Integration")]
 public sealed class CollectorCoordinatorTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine").Build();
@@ -24,6 +25,8 @@ public sealed class CollectorCoordinatorTests : IAsyncLifetime
         await DatabaseMigrator.MigrateAsync(dataSource, CancellationToken.None);
         var endpointId = Guid.NewGuid();
         var siteId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var seriesId = Guid.NewGuid();
         await using (var seedSite = dataSource.CreateCommand("""
             INSERT INTO sites(id,site_key,display_name,country_code,time_zone) VALUES($1,'site-1','Site 1','DK','UTC')
             """))
@@ -39,6 +42,29 @@ public sealed class CollectorCoordinatorTests : IAsyncLifetime
             seedServer.Parameters.AddWithValue(endpointId);
             seedServer.Parameters.AddWithValue(siteId);
             await seedServer.ExecuteNonQueryAsync();
+        }
+        await using (var seedAsset = dataSource.CreateCommand("""
+            INSERT INTO assets(id,site_id,asset_key,display_name,asset_type)
+              VALUES($1,$2,'asset-1','Asset 1','Test asset')
+            """))
+        {
+            seedAsset.Parameters.AddWithValue(assetId);
+            seedAsset.Parameters.AddWithValue(siteId);
+            await seedAsset.ExecuteNonQueryAsync();
+        }
+        await using (var seedSeries = dataSource.CreateCommand("""
+            INSERT INTO series_definitions(
+              id,series_key,display_name,site_id,asset_id,measurement_id,measurement_type,unit,
+              opcua_server_id,namespace_uri,node_id,data_type,description,tags,active)
+            VALUES($1,'dk.test.site-1.asset-1.power','Power',$2,$3,'power','Active power','kW',
+              $4,'urn:test','ns=2;s=power','Double','Test measurement','{}',true)
+            """))
+        {
+            seedSeries.Parameters.AddWithValue(seriesId);
+            seedSeries.Parameters.AddWithValue(siteId);
+            seedSeries.Parameters.AddWithValue(assetId);
+            seedSeries.Parameters.AddWithValue(endpointId);
+            await seedSeries.ExecuteNonQueryAsync();
         }
 
         var coordinator = new CollectorCoordinator(dataSource);

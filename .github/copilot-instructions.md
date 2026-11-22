@@ -10,20 +10,20 @@ Use the repository's real test and build flows rather than ad hoc commands.
 dotnet restore IndustrialEnergyTelemetry.slnx
 dotnet build IndustrialEnergyTelemetry.slnx --no-restore
 
-dotnet test IndustrialEnergyTelemetry.slnx --no-build --filter "Category!=EndToEnd"
+dotnet test IndustrialEnergyTelemetry.slnx --no-build
 ```
 
 Run a single .NET test by project and test name filter:
 
 ```bash
 dotnet test tests/Telemetry.UnitTests/Telemetry.UnitTests.csproj --filter "FullyQualifiedName~SeriesIdentityTests"
-dotnet test tests/Telemetry.IntegrationTests/Telemetry.IntegrationTests.csproj --filter "FullyQualifiedName~KafkaRoundTripTests"
+dotnet test tests/Telemetry.IntegrationTests/Telemetry.IntegrationTests.csproj --filter "Category=Integration&FullyQualifiedName~KafkaRoundTripTests"
 ```
 
 The end-to-end suite requires a healthy local stack and Docker-compatible runtime:
 
 ```bash
-IETP_BASE_URL=http://localhost:3000 dotnet test tests/Telemetry.EndToEndTests
+IETP_BASE_URL=http://localhost:3000 dotnet test tests/Telemetry.EndToEndTests --filter "Category=EndToEnd"
 ```
 
 ### Frontend

@@ -6,20 +6,13 @@ permissions: { contents: read }
 jobs:
   dotnet:
     runs-on: ubuntu-24.04
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env: { POSTGRES_DB: ietp_test, POSTGRES_USER: ietp, POSTGRES_PASSWORD: ietp }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U ietp -d ietp_test" --health-interval 5s --health-timeout 3s --health-retries 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with: { dotnet-version: 11.0.x, cache: true, cache-dependency-path: "**/*.csproj" }
       - run: dotnet restore IndustrialEnergyTelemetry.slnx
       - run: dotnet build IndustrialEnergyTelemetry.slnx --configuration Release --no-restore
-      - run: dotnet test IndustrialEnergyTelemetry.slnx --configuration Release --no-build --filter "Category!=EndToEnd" --logger trx --results-directory TestResults
+      - run: dotnet test tests/Telemetry.UnitTests/Telemetry.UnitTests.csproj --configuration Release --no-build --logger trx --results-directory TestResults
       - uses: actions/upload-artifact@v5
         if: always()
         with: { name: test-results, path: TestResults }

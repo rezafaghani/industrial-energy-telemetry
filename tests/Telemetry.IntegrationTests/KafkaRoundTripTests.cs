@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Ietp.Telemetry.IntegrationTests;
 
+[Trait("Category", "Integration")]
 public sealed class KafkaRoundTripTests : IAsyncLifetime
 {
     private readonly KafkaContainer _kafka = new KafkaBuilder("confluentinc/cp-kafka:8.1.0").Build();
