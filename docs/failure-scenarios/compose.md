@@ -2,6 +2,18 @@
 
 These controls are development operations against the local Compose environment. No destructive control endpoint is exposed by the production API.
 
+## API recreation
+
+The dashboard waits for the API readiness endpoint before nginx starts listening. To verify recovery while the dashboard is already running, recreate only the API:
+
+```bash
+docker compose up -d --no-deps --force-recreate api
+curl --fail --retry 30 --retry-all-errors --retry-delay 1 http://localhost:3000/health/ready
+curl --fail http://localhost:3000/api/overview
+```
+
+Requests can fail briefly while the API restarts. Nginx refreshes the API address through the container network's DNS, so the dashboard recovers without a frontend restart.
+
 ## OPC UA disconnect and reconnect
 
 ```bash
