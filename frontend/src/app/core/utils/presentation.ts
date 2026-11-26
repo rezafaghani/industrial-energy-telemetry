@@ -38,7 +38,8 @@ export function errorMessage(error: unknown): string {
     const body = typeof error.error === 'string'
       ? error.error
       : error.error && typeof error.error === 'object' ? JSON.stringify(error.error) : '';
-    return `${error.status} ${error.statusText}${body ? `: ${body}` : ''}`;
+    const summary = error.status === 0 ? 'Network request failed' : `HTTP ${error.status}`;
+    return body ? `${summary}: ${body}` : summary;
   }
   return error instanceof Error ? error.message : 'An unexpected error occurred.';
 }

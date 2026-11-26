@@ -9,7 +9,6 @@ import { MetricGridComponent, type Metric } from './metric-grid.component';
 
 @Component({
   selector: 'app-overview-page',
-  standalone: true,
   imports: [DataTableComponent, MetricGridComponent, PanelComponent, QueryStateComponent],
   templateUrl: './overview-page.component.html',
 })

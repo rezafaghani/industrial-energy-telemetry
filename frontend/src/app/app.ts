@@ -8,7 +8,6 @@ import { ThemeService } from './core/services/theme.service';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [MatButtonModule, MatChipsModule, MatToolbarModule, RouterLink, RouterLinkActive, RouterOutlet],
   templateUrl: './app-shell.html',
 })

@@ -11,7 +11,6 @@ import { ServerRegistrationComponent } from './server-registration.component';
 
 @Component({
   selector: 'app-infrastructure-page',
-  standalone: true,
   imports: [DataTableComponent, PanelComponent, QueryStateComponent, ServerRegistrationComponent, StatusCardsComponent],
   templateUrl: './infrastructure-page.component.html',
 })
