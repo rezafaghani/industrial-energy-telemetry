@@ -25,7 +25,6 @@ const chartColors = ['#36d399', '#60a5fa', '#f59e0b', '#f472b6'];
 
 @Component({
   selector: 'app-series-explorer-page',
-  standalone: true,
   imports: [
     DataTableComponent,
     MatCardModule,

@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import type { Row } from '../../../core/models/telemetry';
@@ -7,14 +6,13 @@ import { formatCell, statusClass } from '../../../core/utils/presentation';
 
 @Component({
   selector: 'app-status-cards',
-  standalone: true,
-  imports: [CommonModule, MatCardModule, MatChipsModule],
+  imports: [MatCardModule, MatChipsModule],
   template: `
-    @if (rows.length === 0) {
-      <mat-card class="empty-state">{{ emptyMessage }}</mat-card>
+    @if (rows().length === 0) {
+      <mat-card class="empty-state">{{ emptyMessage() }}</mat-card>
     } @else {
       <div class="status-grid">
-        @for (row of rows; track row['id'] ?? row['instance_id'] ?? $index) {
+        @for (row of rows(); track row['id'] ?? row['instance_id'] ?? $index) {
           <mat-card>
             <mat-card-header>
               <mat-card-title>{{ labelFor(row) }}</mat-card-title>
@@ -36,8 +34,8 @@ import { formatCell, statusClass } from '../../../core/utils/presentation';
   `,
 })
 export class StatusCardsComponent {
-  @Input() rows: Row[] = [];
-  @Input() emptyMessage = 'No records are available.';
+  readonly rows = input<Row[]>([]);
+  readonly emptyMessage = input('No records are available.');
 
   statusFor(row: Row): unknown {
     return row['status'] ?? row['last_status'] ?? row['health'] ?? 'Unknown';

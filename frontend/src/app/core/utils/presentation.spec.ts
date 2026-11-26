@@ -19,11 +19,14 @@ describe('telemetry presentation helpers', () => {
   it('includes the API response body in visible HTTP errors', () => {
     const error = new HttpErrorResponse({
       status: 400,
-      statusText: 'Bad Request',
       error: 'invalid server configuration',
     });
 
-    expect(errorMessage(error)).toBe('400 Bad Request: invalid server configuration');
+    expect(errorMessage(error)).toBe('HTTP 400: invalid server configuration');
+  });
+
+  it('describes a network failure when there is no HTTP status', () => {
+    expect(errorMessage(new HttpErrorResponse({ status: 0 }))).toBe('Network request failed');
   });
 
   it('projects a measurement into the history table row shape', () => {

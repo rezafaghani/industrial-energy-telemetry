@@ -8,7 +8,6 @@ import { StatusCardsComponent } from '../../shared/components/status-cards/statu
 
 @Component({
   selector: 'app-services-page',
-  standalone: true,
   imports: [PanelComponent, QueryStateComponent, StatusCardsComponent],
   templateUrl: './services-page.component.html',
 })

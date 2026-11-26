@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 
 export interface Metric {
@@ -8,11 +8,10 @@ export interface Metric {
 
 @Component({
   selector: 'app-metric-grid',
-  standalone: true,
   imports: [MatCardModule],
   template: `
     <div class="metric-grid">
-      @for (metric of metrics; track metric.label) {
+      @for (metric of metrics(); track metric.label) {
         <mat-card>
           <mat-card-content>
             <div class="metric-label">{{ metric.label }}</div>
@@ -24,5 +23,5 @@ export interface Metric {
   `,
 })
 export class MetricGridComponent {
-  @Input() metrics: Metric[] = [];
+  readonly metrics = input<Metric[]>([]);
 }

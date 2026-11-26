@@ -25,7 +25,6 @@ const emptyServer: ServerForm = {
 
 @Component({
   selector: 'app-server-registration',
-  standalone: true,
   imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatProgressBarModule],
   templateUrl: './server-registration.component.html',
 })
